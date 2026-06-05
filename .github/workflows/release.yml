@@ -55,7 +55,7 @@ jobs:
           if [[ "${{ matrix.os }}" == windows-* ]]; then
             EXT=".exe"
           fi
-          SRC="crates/delve-core/target/${{ matrix.target }}/release/delve-core${EXT}"
+          SRC="target/${{ matrix.target }}/release/delve-core${EXT}"
           DST="delve-core-${{ matrix.target }}${EXT}"
           cp "$SRC" "$DST"
           sha256sum "$DST" > "${DST}.sha256"
