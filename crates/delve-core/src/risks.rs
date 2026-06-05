@@ -20,8 +20,12 @@ pub enum RiskKind {
 }
 
 pub fn detect_risks(root: &Path) -> Vec<RiskItem> {
+    detect_risks_with_ignore(root, &[])
+}
+
+pub fn detect_risks_with_ignore(root: &Path, ignore_patterns: &[String]) -> Vec<RiskItem> {
     let mut risks = Vec::new();
-    let files = parser::find_source_files(root);
+    let files = parser::find_source_files_with_ignore(root, ignore_patterns);
 
     for file_path in &files {
         let source = match std::fs::read_to_string(file_path) {

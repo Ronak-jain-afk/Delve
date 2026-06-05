@@ -11,7 +11,7 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
 
     // Parse once, reuse everywhere
     progress.set_message("Parsing files...");
-    let symbols = crate::parser::parse_all_files(root);
+    let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
 
     progress.set_message("Analyzing dependencies...");
     let mut graph = DepGraph::new(symbols);
@@ -20,14 +20,14 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
     graph.traverse_from_entry_points();
 
     progress.set_message("Analyzing giant functions...");
-    let files = crate::parser::find_source_files(root);
-    let all_symbols = crate::parser::parse_all_files(root);
+    let all_symbols: Vec<_> = graph.all_symbols.values().cloned().collect();
     let giant_metrics = giant_funcs::analyze_functions(&all_symbols, &config.thresholds);
 
     progress.set_message("Detecting risky patterns...");
-    let risk_items = risks::detect_risks(root);
+    let risk_items = risks::detect_risks_with_ignore(root, &config.ignore);
 
     progress.set_message("Detecting duplicates...");
+    let files = crate::parser::find_source_files_with_ignore(root, &config.ignore);
     let dup_clusters = duplicates::find_duplicates(&files);
 
     if json {

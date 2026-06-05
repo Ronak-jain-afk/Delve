@@ -83,6 +83,10 @@ impl HealthReport {
 }
 
 pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics], risk_items: &[risks::RiskItem], weights: &Weights, root: &Path) -> HealthReport {
+    calculate_with_ignore(graph, giant_metrics, risk_items, weights, root, &[])
+}
+
+pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics], risk_items: &[risks::RiskItem], weights: &Weights, root: &Path, ignore_patterns: &[String]) -> HealthReport {
     let unused_items = unused::find_unused(graph);
     let unused_file_count = unused_items.len();
 
@@ -96,7 +100,7 @@ pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics
     let long_params_count = risk_items.iter().filter(|r| r.kind == RiskKind::LongParams).count();
 
     // Count duplicates
-    let files = crate::parser::find_source_files(root);
+    let files = crate::parser::find_source_files_with_ignore(root, ignore_patterns);
     let dup_clusters = duplicates::find_duplicates(&files);
     let duplicate_count = dup_clusters.len();
 
@@ -139,7 +143,7 @@ pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics
 pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
     let progress = crate::progress::Progress::new(!json);
     progress.set_message("Parsing files...");
-    let symbols = crate::parser::parse_all_files(root);
+    let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
     progress.set_message("Analyzing dependencies...");
     let mut graph = crate::graph::DepGraph::new(symbols);
     graph.build();
@@ -150,10 +154,10 @@ pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) 
     let all_symbols: Vec<_> = graph.all_symbols.values().cloned().collect();
     let giant_metrics = giant_funcs::analyze_functions(&all_symbols, &config.thresholds);
     progress.set_message("Detecting risky patterns...");
-    let risk_items = risks::detect_risks(root);
+    let risk_items = risks::detect_risks_with_ignore(root, &config.ignore);
 
     progress.set_message("Calculating health score...");
-    let report = calculate(&graph, &giant_metrics, &risk_items, &config.weights, root);
+    let report = calculate_with_ignore(&graph, &giant_metrics, &risk_items, &config.weights, root, &config.ignore);
     progress.finish();
 
     if json {

@@ -192,10 +192,10 @@ pub fn format_report(clusters: &[DuplicateCluster]) -> String {
     output
 }
 
-pub fn run_dup(root: &Path, json: bool, _config: &crate::config::DelveConfig) -> String {
+pub fn run_dup(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
     let progress = crate::progress::Progress::new(!json);
     progress.set_message("Parsing files...");
-    let files = parser::find_source_files(root);
+    let files = parser::find_source_files_with_ignore(root, &config.ignore);
     progress.set_message("Detecting duplicates...");
     let clusters = find_duplicates(&files);
     progress.finish();

@@ -364,7 +364,11 @@ fn resolve_package_import(current_file: &str, import_path: &str) -> Option<Strin
 }
 
 pub fn build_complete_graph(root: &Path) -> DepGraph {
-    let symbols = crate::parser::parse_all_files(root);
+    build_complete_graph_with_ignore(root, &[])
+}
+
+pub fn build_complete_graph_with_ignore(root: &Path, ignore_patterns: &[String]) -> DepGraph {
+    let symbols = crate::parser::parse_all_files_with_ignore(root, ignore_patterns);
     let mut graph = DepGraph::new(symbols);
     graph.build();
     graph.detect_entry_points();

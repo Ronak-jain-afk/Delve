@@ -85,10 +85,10 @@ pub fn format_unused_json(items: &[UnusedItem]) -> serde_json::Value {
     }).collect::<Vec<_>>())
 }
 
-pub fn run_deadcode(root: &Path, json: bool, _config: &crate::config::DelveConfig) -> String {
+pub fn run_deadcode(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
     let progress = crate::progress::Progress::new(!json);
     progress.set_message("Parsing files...");
-    let symbols = crate::parser::parse_all_files(root);
+    let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
     progress.set_message("Analyzing dependencies...");
     let mut graph = crate::graph::DepGraph::new(symbols);
     graph.build();

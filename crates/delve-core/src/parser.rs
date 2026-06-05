@@ -48,6 +48,10 @@ fn parse_file(path: &str, source: &str) -> Option<Tree> {
 }
 
 pub fn find_source_files(root: &Path) -> Vec<String> {
+    find_source_files_with_ignore(root, &[])
+}
+
+pub fn find_source_files_with_ignore(root: &Path, ignore_patterns: &[String]) -> Vec<String> {
     let mut files = Vec::new();
     let root = if root.is_relative() {
         std::env::current_dir()
@@ -73,10 +77,14 @@ pub fn find_source_files(root: &Path) -> Vec<String> {
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             match ext.to_lowercase().as_str() {
                 "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" => {
+                    let path_str = path.to_string_lossy();
+                    if ignore_patterns.iter().any(|p| path_str.contains(p.as_str())) {
+                        continue;
+                    }
                     if let Ok(canonical) = path.canonicalize() {
                         files.push(canonical.to_string_lossy().to_string());
                     } else {
-                        files.push(path.to_string_lossy().to_string());
+                        files.push(path_str.to_string());
                     }
                 }
                 _ => {}
@@ -485,7 +493,11 @@ pub fn extract_file_symbols(file_path: &str, source: &str) -> Option<FileSymbols
 use rayon::prelude::*;
 
 pub fn parse_all_files(root: &Path) -> Vec<FileSymbols> {
-    let files = find_source_files(root);
+    parse_all_files_with_ignore(root, &[])
+}
+
+pub fn parse_all_files_with_ignore(root: &Path, ignore_patterns: &[String]) -> Vec<FileSymbols> {
+    let files = find_source_files_with_ignore(root, ignore_patterns);
     files
         .par_iter()
         .filter_map(|file_path| {

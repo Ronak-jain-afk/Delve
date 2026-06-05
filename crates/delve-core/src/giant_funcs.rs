@@ -233,7 +233,7 @@ pub fn format_json(metrics: &[FunctionMetrics]) -> serde_json::Value {
 }
 
 pub fn run_split(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
-    let symbols = crate::parser::parse_all_files(root);
+    let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
     let metrics = analyze_functions(&symbols, &config.thresholds);
     if json {
         serde_json::to_string_pretty(&format_json(&metrics)).unwrap()
