@@ -56,7 +56,8 @@ fn main() {
             println!("{}", output);
         }
         Some(Commands::Split) => {
-            println!("Split command not yet implemented");
+            let output = delve_core::giant_funcs::run_split(root, cli.json);
+            print!("{}", output);
         }
         Some(Commands::Dup) => {
             println!("Dup command not yet implemented");

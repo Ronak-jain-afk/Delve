@@ -124,6 +124,8 @@ pub struct FunctionInfo {
     pub start_line: usize,
     pub end_line: usize,
     pub body_start_line: usize,
+    pub start_byte: usize,
+    pub end_byte: usize,
     pub file_path: String,
 }
 
@@ -139,6 +141,18 @@ fn node_text<'a>(source: &'a str, node: Node) -> &'a str {
     &source[node.byte_range()]
 }
 
+fn make_function_info(node: Node, name: Option<String>, file_path: &str) -> FunctionInfo {
+    FunctionInfo {
+        name,
+        start_line: node.start_position().row + 1,
+        end_line: node.end_position().row + 1,
+        body_start_line: node.start_position().row + 1,
+        start_byte: node.byte_range().start,
+        end_byte: node.byte_range().end,
+        file_path: file_path.to_string(),
+    }
+}
+
 fn collect_functions(node: Node, source: &str, file_path: &str, functions: &mut Vec<FunctionInfo>) {
     let kind = node.kind();
     if kind == "function_declaration"
@@ -147,13 +161,7 @@ fn collect_functions(node: Node, source: &str, file_path: &str, functions: &mut 
         let name = node
             .child_by_field_name("name")
             .map(|n| node_text(source, n).to_string());
-        functions.push(FunctionInfo {
-            name,
-            start_line: node.start_position().row + 1,
-            end_line: node.end_position().row + 1,
-            body_start_line: node.start_position().row + 1,
-            file_path: file_path.to_string(),
-        });
+        functions.push(make_function_info(node, name, file_path));
         return;
     }
 
@@ -174,13 +182,7 @@ fn collect_function_expressions(
         let name = node
             .child_by_field_name("name")
             .map(|n| node_text(source, n).to_string());
-        functions.push(FunctionInfo {
-            name,
-            start_line: node.start_position().row + 1,
-            end_line: node.end_position().row + 1,
-            body_start_line: node.start_position().row + 1,
-            file_path: file_path.to_string(),
-        });
+        functions.push(make_function_info(node, name, file_path));
         return;
     }
 
@@ -217,13 +219,7 @@ fn collect_exports(
                                 file_path: file_path.to_string(),
                                 is_used: false,
                             });
-                            functions.push(FunctionInfo {
-                                name: Some(name.to_string()),
-                                start_line: start,
-                                end_line: end,
-                                body_start_line: start,
-                                file_path: file_path.to_string(),
-                            });
+                            functions.push(make_function_info(child, Some(name.to_string()), file_path));
                         }
                     }
                     "class_declaration" => {
@@ -387,13 +383,7 @@ fn extract_variable_exports(
                 });
                 if let Some(value) = child.child_by_field_name("value") {
                     if value.kind() == "function" || value.kind() == "arrow_function" {
-                        functions.push(FunctionInfo {
-                            name: Some(name.to_string()),
-                            start_line: start,
-                            end_line: end,
-                            body_start_line: value.start_position().row + 1,
-                            file_path: file_path.to_string(),
-                        });
+                        functions.push(make_function_info(value, Some(name.to_string()), file_path));
                     }
                 }
             }
