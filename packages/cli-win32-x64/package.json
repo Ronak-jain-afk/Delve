@@ -7,6 +7,10 @@
   "bin": {
     "delve": "bin/delve.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ronak-jain-afk/Delve.git"
+  },
   "scripts": {
     "postinstall": "node bin/download.js"
   },
