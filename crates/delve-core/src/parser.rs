@@ -49,7 +49,14 @@ fn parse_file(path: &str, source: &str) -> Option<Tree> {
 
 pub fn find_source_files(root: &Path) -> Vec<String> {
     let mut files = Vec::new();
-    let walker = WalkBuilder::new(root)
+    let root = if root.is_relative() {
+        std::env::current_dir()
+            .unwrap_or_default()
+            .join(root)
+    } else {
+        root.to_path_buf()
+    };
+    let walker = WalkBuilder::new(&root)
         .git_ignore(true)
         .standard_filters(true)
         .build();
@@ -66,7 +73,11 @@ pub fn find_source_files(root: &Path) -> Vec<String> {
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             match ext.to_lowercase().as_str() {
                 "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" => {
-                    files.push(path.to_string_lossy().to_string());
+                    if let Ok(canonical) = path.canonicalize() {
+                        files.push(canonical.to_string_lossy().to_string());
+                    } else {
+                        files.push(path.to_string_lossy().to_string());
+                    }
                 }
                 _ => {}
             }
