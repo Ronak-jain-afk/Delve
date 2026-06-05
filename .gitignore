@@ -1,4 +1,11 @@
-# Plan files
-AGENTS.md
-plan.md
-TASK_PLAN.md
+# Rust
+target/
+crates/**/*.rs.bk
+
+# Node
+packages/cli/node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

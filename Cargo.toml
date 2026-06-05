@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/delve-core"]
+resolver = "2"
