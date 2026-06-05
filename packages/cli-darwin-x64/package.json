@@ -1,5 +1,5 @@
 {
-  "name": "@delve/cli-darwin-x64",
+  "name": "@ronak-jain-afk/cli-darwin-x64",
   "version": "0.1.0",
   "description": "Delve static analysis CLI for macOS x64",
   "os": ["darwin"],

@@ -15,11 +15,11 @@
   - `ignore` for `.gitignore`-aware file walking
 - Set up `rustfmt` config and `clippy` as a lint step
 
-### 0.2 Initialize npm package (`@delve/cli`)
+### 0.2 Initialize npm package (`@ronak-jain-afk/cli`)
 - `npm init` in `packages/cli/`
 - Set up `bin` entry point (`bin/delve.js`)
 - Add `postinstall` script placeholder
-- Configure `package.json` with `name: "@delve/cli"`, `version: "0.1.0"`, `bin: { delve: "bin/delve.js" }`
+- Configure `package.json` with `name: "@ronak-jain-afk/cli"`, `version: "0.1.0"`, `bin: { delve: "bin/delve.js" }`
 - Add `meow` or `yargs` for CLI argument parsing in the JS wrapper
 - Add `chalk` or `picocolors` for colored terminal output in the JS wrapper
 
@@ -417,12 +417,12 @@ delve/
 ### 9.1 Build Rust binary (`npm run build` equivalent)
 - `cargo build --release` produces the binary
 - Create platform-specific npm packages:
-  - `@delve/cli-darwin-x64`
-  - `@delve/cli-darwin-arm64`
-  - `@delve/cli-linux-x64`
-  - `@delve/cli-linux-arm64`
-  - `@delve/cli-win32-x64`
-  - `@delve/cli-win32-arm64`
+  - `@ronak-jain-afk/cli-darwin-x64`
+  - `@ronak-jain-afk/cli-darwin-arm64`
+  - `@ronak-jain-afk/cli-linux-x64`
+  - `@ronak-jain-afk/cli-linux-arm64`
+  - `@ronak-jain-afk/cli-win32-x64`
+  - `@ronak-jain-afk/cli-win32-arm64`
 
 ### 9.2 Write npm download script (`packages/cli/bin/delve.js`)
 - On `postinstall`, detect platform/architecture
@@ -442,15 +442,15 @@ delve/
 - Add checksums file
 
 ### 9.4 Set up npm publishing
-- `@delve/cli` is the main package
+- `@ronak-jain-afk/cli` is the main package
 - Platform-specific packages are optional dependencies
 - `package.json` structure:
   ```json
   {
-    "name": "@delve/cli",
+    "name": "@ronak-jain-afk/cli",
     "optionalDependencies": {
-      "@delve/cli-darwin-x64": "0.1.0",
-      "@delve/cli-darwin-arm64": "0.1.0",
+      "@ronak-jain-afk/cli-darwin-x64": "0.1.0",
+      "@ronak-jain-afk/cli-darwin-arm64": "0.1.0",
       ...
     }
   }
@@ -458,7 +458,7 @@ delve/
 - Publish to npm registry via `npm publish` in CI
 
 ### 9.5 Verify end-to-end flow
-- `npm install -g @delve/cli`
+- `npm install -g @ronak-jain-afk/cli`
 - `delve audit --path ./some-project`
 - Test on Windows, macOS, Linux
 - Test with network failure (binary download fails → clear error)

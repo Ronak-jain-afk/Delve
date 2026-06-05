@@ -1,5 +1,5 @@
 {
-  "name": "@delve/cli-linux-x64",
+  "name": "@ronak-jain-afk/cli-linux-x64",
   "version": "0.1.0",
   "description": "Delve static analysis CLI for Linux x64",
   "os": ["linux"],

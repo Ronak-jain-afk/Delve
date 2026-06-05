@@ -1,5 +1,5 @@
 {
-  "name": "@delve/cli",
+  "name": "@ronak-jain-afk/cli",
   "version": "0.1.0",
   "description": "Static analysis for TS/JS — unused code, giant functions, duplicates, health score",
   "bin": {
@@ -9,12 +9,12 @@
     "postinstall": "node bin/download.js"
   },
   "optionalDependencies": {
-    "@delve/cli-darwin-x64": "0.1.0",
-    "@delve/cli-darwin-arm64": "0.1.0",
-    "@delve/cli-linux-x64": "0.1.0",
-    "@delve/cli-linux-arm64": "0.1.0",
-    "@delve/cli-win32-x64": "0.1.0",
-    "@delve/cli-win32-arm64": "0.1.0"
+    "@ronak-jain-afk/cli-darwin-x64": "0.1.0",
+    "@ronak-jain-afk/cli-darwin-arm64": "0.1.0",
+    "@ronak-jain-afk/cli-linux-x64": "0.1.0",
+    "@ronak-jain-afk/cli-linux-arm64": "0.1.0",
+    "@ronak-jain-afk/cli-win32-x64": "0.1.0",
+    "@ronak-jain-afk/cli-win32-arm64": "0.1.0"
   },
   "engines": {
     "node": ">=18"

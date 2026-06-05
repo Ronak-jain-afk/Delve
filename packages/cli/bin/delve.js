@@ -26,7 +26,7 @@ function findBinary() {
 const binary = findBinary();
 if (!binary) {
   console.error('delve-core binary not found.');
-  console.error('Install: npm install -g @delve/cli');
+  console.error('Install: npm install -g @ronak-jain-afk/cli');
   console.error('Build: cd crates/delve-core && cargo build --release');
   process.exit(1);
 }
