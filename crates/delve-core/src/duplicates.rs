@@ -4,6 +4,7 @@ use std::path::Path;
 
 use rayon::prelude::*;
 use tree_sitter::Node;
+use yansi::Paint;
 
 use crate::parser;
 
@@ -174,7 +175,7 @@ pub fn format_report(clusters: &[DuplicateCluster]) -> String {
     if clusters.is_empty() {
         return "  No duplicate blocks found.\n".to_string();
     }
-    let mut output = String::from("DUPLICATE BLOCKS\n");
+    let mut output = format!("{}\n", Paint::yellow("DUPLICATE BLOCKS"));
     for (i, cluster) in clusters.iter().enumerate() {
         let loc_strs: Vec<String> = cluster
             .locations

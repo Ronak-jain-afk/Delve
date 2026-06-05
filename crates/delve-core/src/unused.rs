@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use yansi::Paint;
+
 use crate::graph::DepGraph;
 use crate::parser::ExportKind;
 
@@ -64,7 +66,7 @@ pub fn format_unused_report(items: &[UnusedItem]) -> String {
     if items.is_empty() {
         return "  No unused exports found.\n".to_string();
     }
-    let mut output = String::from("UNUSED CODE (safe to delete)\n");
+    let mut output = format!("{}\n", Paint::yellow("UNUSED CODE (safe to delete)"));
     for item in items {
         output.push_str(&format!(
             "  {}:{}   {} (exported {}, never imported)\n",

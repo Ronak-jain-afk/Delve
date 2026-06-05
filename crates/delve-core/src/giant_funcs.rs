@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use yansi::Paint;
+
 use crate::config::Thresholds;
 use crate::parser::FileSymbols;
 
@@ -201,11 +203,11 @@ pub fn format_report(metrics: &[FunctionMetrics]) -> String {
     if metrics.is_empty() {
         return "  No giant functions found.\n".to_string();
     }
-    let mut output = String::from("GIANT FUNCTIONS (split me)\n");
+    let mut output = format!("{}\n", Paint::yellow("GIANT FUNCTIONS (split me)"));
     for m in metrics {
         let label = match m.severity {
-            Severity::Critical => "CRITICAL",
-            Severity::Warning => "warning",
+            Severity::Critical => Paint::red("CRITICAL").to_string(),
+            Severity::Warning => Paint::yellow("warning").to_string(),
         };
         output.push_str(&format!(
             "  [{}] {}:{}   {} ({} lines, complexity {})\n",

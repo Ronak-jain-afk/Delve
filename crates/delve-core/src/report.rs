@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use yansi::Paint;
+
 use crate::duplicates;
 use crate::giant_funcs;
 use crate::graph::DepGraph;
@@ -52,39 +54,44 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
         }))
         .unwrap()
     } else {
-        let mut output = format!("Delve Audit — {}\n\n", root.display());
+        let mut output = format!("{}\n\n", Paint::bold(&format!("Delve Audit — {}", root.display())));
 
         let unused_items = unused::find_unused(&graph);
         if unused_items.is_empty() {
-            output.push_str("UNUSED CODE\n  No unused exports found.\n\n");
+            output.push_str(&format!("{}\n  No unused exports found.\n\n", Paint::yellow("UNUSED CODE")));
         } else {
             output.push_str(&unused::format_unused_report(&unused_items));
             output.push('\n');
         }
 
         if giant_metrics.is_empty() {
-            output.push_str("GIANT FUNCTIONS\n  No giant functions found.\n\n");
+            output.push_str(&format!("{}\n  No giant functions found.\n\n", Paint::yellow("GIANT FUNCTIONS")));
         } else {
             output.push_str(&giant_funcs::format_report(&giant_metrics));
             output.push('\n');
         }
 
         if dup_clusters.is_empty() {
-            output.push_str("DUPLICATE BLOCKS\n  No duplicate blocks found.\n\n");
+            output.push_str(&format!("{}\n  No duplicate blocks found.\n\n", Paint::yellow("DUPLICATE BLOCKS")));
         } else {
             output.push_str(&duplicates::format_report(&dup_clusters));
             output.push('\n');
         }
 
         if risk_items.is_empty() {
-            output.push_str("RISKY PATTERNS\n  No risky patterns found.\n\n");
+            output.push_str(&format!("{}\n  No risky patterns found.\n\n", Paint::yellow("RISKY PATTERNS")));
         } else {
             output.push_str(&risks::format_report(&risk_items));
             output.push('\n');
         }
 
         let health = crate::health::calculate(&graph, &giant_metrics, &risk_items, &config.weights, root);
-        output.push_str(&format!("HEALTH SCORE: {}/100 — \"{}\"\n", health.score, health.label));
+        let colored_label = match health.label {
+            "healthy" => Paint::green(health.label).to_string(),
+            "needs work" => Paint::yellow(health.label).to_string(),
+            _ => Paint::red(health.label).to_string(),
+        };
+        output.push_str(&format!("HEALTH SCORE: {}/100 — \"{}\"\n", Paint::bold(&health.score.to_string()), colored_label));
         for todo in health.to_todo_list() {
             output.push_str(&format!("  → {}\n", todo));
         }

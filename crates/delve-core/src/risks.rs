@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use yansi::Paint;
+
 use crate::parser;
 
 #[derive(Debug, Clone)]
@@ -203,7 +205,7 @@ pub fn format_report(risks: &[RiskItem]) -> String {
     if risks.is_empty() {
         return "  No risky patterns found.\n".to_string();
     }
-    let mut output = String::from("RISKY PATTERNS\n");
+    let mut output = format!("{}\n", Paint::yellow("RISKY PATTERNS"));
     for item in risks {
         let label = match item.kind {
             RiskKind::AnyType => "any type",

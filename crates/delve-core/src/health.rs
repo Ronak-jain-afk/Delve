@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use yansi::Paint;
+
 use crate::config::Weights;
 use crate::duplicates;
 use crate::giant_funcs::{self, Severity};
@@ -177,7 +179,12 @@ pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) 
         }))
         .unwrap()
     } else {
-        let mut output = format!("HEALTH SCORE: {}/100 — \"{}\"\n", report.score, report.label);
+        let colored_label = match report.label {
+            "healthy" => Paint::green(report.label).to_string(),
+            "needs work" => Paint::yellow(report.label).to_string(),
+            _ => Paint::red(report.label).to_string(),
+        };
+        let mut output = format!("HEALTH SCORE: {}/100 — \"{}\"\n", Paint::bold(&report.score.to_string()), colored_label);
         output.push_str("  Todo:\n");
         for todo in report.to_todo_list() {
             output.push_str(&format!("    • {}\n", todo));
