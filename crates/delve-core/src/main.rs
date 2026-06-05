@@ -60,7 +60,8 @@ fn main() {
             print!("{}", output);
         }
         Some(Commands::Dup) => {
-            println!("Dup command not yet implemented");
+            let output = delve_core::duplicates::run_dup(root, cli.json);
+            print!("{}", output);
         }
         Some(Commands::Health) => {
             println!("Health command not yet implemented");
