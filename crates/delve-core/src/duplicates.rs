@@ -8,8 +8,7 @@ use yansi::Paint;
 
 use crate::parser;
 
-const MIN_WINDOW: usize = 6;
-const MAX_WINDOW: usize = 15;
+const WINDOW_SIZE: usize = 15;
 
 #[derive(Debug, Clone)]
 pub struct DupLocation {
@@ -94,59 +93,86 @@ fn hash_window(window: &[String]) -> u64 {
     hasher.finish()
 }
 
+fn merge_overlapping(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+    ranges.sort();
+    let mut merged: Vec<(usize, usize)> = Vec::new();
+    for (start, end) in ranges {
+        if let Some(last) = merged.last_mut() {
+            if start <= last.1 {
+                last.1 = last.1.max(end);
+                continue;
+            }
+        }
+        merged.push((start, end));
+    }
+    merged
+}
+
 pub fn find_duplicates(files: &[String]) -> Vec<DuplicateCluster> {
     let file_tokens: Vec<(String, Vec<String>)> = files
         .par_iter()
         .filter_map(|file_path| {
             let source = std::fs::read_to_string(file_path).ok()?;
             let tokens = tokenize_with_tree_sitter(file_path, &source)?;
-            if tokens.len() < MIN_WINDOW {
+            if tokens.len() < WINDOW_SIZE {
                 return None;
             }
             Some((file_path.clone(), tokens))
         })
         .collect();
 
-    let mut hash_map: HashMap<u64, Vec<(usize, usize, usize)>> = HashMap::new();
+    let mut hash_map: HashMap<u64, Vec<(usize, usize)>> = HashMap::new();
 
     for (file_idx, (_path, tokens)) in file_tokens.iter().enumerate() {
-        if tokens.len() < MIN_WINDOW {
+        if tokens.len() < WINDOW_SIZE {
             continue;
         }
-        for window_start in 0..=(tokens.len() - MIN_WINDOW) {
-            for size in MIN_WINDOW..=MAX_WINDOW.min(tokens.len() - window_start) {
-                let window = &tokens[window_start..window_start + size];
-                let hash = hash_window(window);
-                hash_map
-                    .entry(hash)
-                    .or_default()
-                    .push((file_idx, window_start, window_start + size));
-            }
+        for window_start in 0..=(tokens.len() - WINDOW_SIZE) {
+            let window = &tokens[window_start..window_start + WINDOW_SIZE];
+            let hash = hash_window(window);
+            hash_map
+                .entry(hash)
+                .or_default()
+                .push((file_idx, window_start));
+        }
+    }
+
+    let mut cluster_map: HashMap<u64, Vec<(usize, Vec<(usize, usize)>)>> = HashMap::new();
+
+    for (hash, locations) in hash_map {
+        let mut file_groups: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+        for (file_idx, start) in locations {
+            file_groups
+                .entry(file_idx)
+                .or_default()
+                .push((start, start + WINDOW_SIZE));
+        }
+
+        let merged: Vec<(usize, Vec<(usize, usize)>)> = file_groups
+            .into_iter()
+            .filter_map(|(file_idx, ranges)| {
+                let merged = merge_overlapping(ranges);
+                if merged.is_empty() { return None; }
+                Some((file_idx, merged))
+            })
+            .collect();
+
+        if merged.len() >= 2 {
+            cluster_map.insert(hash, merged);
         }
     }
 
     let mut clusters: Vec<DuplicateCluster> = Vec::new();
 
-    for (_hash, locations) in hash_map {
-        let mut file_groups: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
-        for (file_idx, start, end) in &locations {
-            file_groups
-                .entry(*file_idx)
-                .or_default()
-                .push((*start, *end));
-        }
-
-        if file_groups.len() < 2 {
-            continue;
-        }
-
-        let first_file_idx = *file_groups.keys().min().unwrap();
-        let first_loc = file_groups[&first_file_idx][0];
-        let sample_tokens = &file_tokens[first_file_idx].1[first_loc.0..first_loc.1];
+    for (_hash, file_blocks) in cluster_map {
+        let first_entry = &file_blocks[0];
+        let first_file_idx = first_entry.0;
+        let first_block = &first_entry.1[0];
+        let sample_tokens = &file_tokens[first_file_idx].1[first_block.0..first_block.1];
         let sample = sample_tokens.join(" ");
 
         let mut dup_locations = Vec::new();
-        for (file_idx, _ranges) in &file_groups {
+        for (file_idx, _blocks) in &file_blocks {
             let file_path = &file_tokens[*file_idx].0;
             dup_locations.push(DupLocation {
                 file_path: file_path.clone(),
@@ -155,17 +181,19 @@ pub fn find_duplicates(files: &[String]) -> Vec<DuplicateCluster> {
             });
         }
 
-        if dup_locations.len() >= 2 {
-            clusters.push(DuplicateCluster {
-                locations: dup_locations,
-                sample: if sample.len() > 120 {
-                    format!("{}...", &sample[..120])
-                } else {
-                    sample
-                },
-                token_count: sample_tokens.len(),
-            });
-        }
+        let token_count: usize = file_blocks.iter().map(|(_, blocks)| {
+            blocks.iter().map(|(s, e)| e - s).sum::<usize>()
+        }).max().unwrap_or(WINDOW_SIZE);
+
+        clusters.push(DuplicateCluster {
+            locations: dup_locations,
+            sample: if sample.len() > 120 {
+                format!("{}...", &sample[..120])
+            } else {
+                sample
+            },
+            token_count,
+        });
     }
 
     clusters

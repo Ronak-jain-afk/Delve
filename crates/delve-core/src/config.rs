@@ -49,10 +49,10 @@ const fn default_warning_lines() -> usize { 40 }
 const fn default_critical_lines() -> usize { 80 }
 const fn default_warning_complexity() -> usize { 10 }
 const fn default_critical_complexity() -> usize { 20 }
-const fn default_unused_file() -> usize { 15 }
-const fn default_giant_critical() -> usize { 5 }
-const fn default_giant_warning() -> usize { 2 }
-const fn default_duplicate() -> usize { 3 }
+const fn default_unused_file() -> usize { 10 }
+const fn default_giant_critical() -> usize { 3 }
+const fn default_giant_warning() -> usize { 1 }
+const fn default_duplicate() -> usize { 1 }
 const fn default_any_type() -> usize { 1 }
 const fn default_console_log() -> usize { 1 }
 

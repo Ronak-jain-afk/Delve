@@ -65,10 +65,10 @@ Create a `.delve.json` in your project root:
     "criticalComplexity": 20
   },
   "weights": {
-    "unusedFile": 15,
-    "giantCritical": 5,
-    "giantWarning": 2,
-    "duplicate": 3,
+    "unusedFile": 10,
+    "giantCritical": 3,
+    "giantWarning": 1,
+    "duplicate": 1,
     "anyType": 1,
     "consoleLog": 1
   },
