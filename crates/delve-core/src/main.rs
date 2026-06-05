@@ -41,19 +41,12 @@ fn main() {
 
     match &cli.command {
         Some(Commands::Audit) => {
-            println!("Delve Audit — {}\n", root.display());
-            let output = delve_core::unused::run_deadcode(root, cli.json);
-            println!("{}", output);
+            let output = delve_core::report::run_full_audit(root, cli.json);
+            print!("{}", output);
         }
         Some(Commands::Deadcode) => {
             let output = delve_core::unused::run_deadcode(root, cli.json);
             print!("{}", output);
-        }
-        None => {
-            // Default command: audit
-            println!("Delve Audit — {}\n", root.display());
-            let output = delve_core::unused::run_deadcode(root, cli.json);
-            println!("{}", output);
         }
         Some(Commands::Split) => {
             let output = delve_core::giant_funcs::run_split(root, cli.json);
@@ -64,7 +57,13 @@ fn main() {
             print!("{}", output);
         }
         Some(Commands::Health) => {
-            println!("Health command not yet implemented");
+            let output = delve_core::health::run_health(root, cli.json);
+            print!("{}", output);
+        }
+        None => {
+            // Default: full audit
+            let output = delve_core::report::run_full_audit(root, cli.json);
+            print!("{}", output);
         }
     }
 }
