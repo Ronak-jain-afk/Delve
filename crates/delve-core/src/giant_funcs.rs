@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::config::Thresholds;
 use crate::parser::FileSymbols;
 
 pub struct FunctionMetrics {
@@ -159,7 +160,7 @@ pub fn compute_complexity(source: &str, start_byte: usize, end_byte: usize) -> u
     complexity
 }
 
-pub fn analyze_functions(symbols: &[FileSymbols]) -> Vec<FunctionMetrics> {
+pub fn analyze_functions(symbols: &[FileSymbols], thresholds: &Thresholds) -> Vec<FunctionMetrics> {
     let mut all_metrics = Vec::new();
 
     for file_sym in symbols {
@@ -172,12 +173,12 @@ pub fn analyze_functions(symbols: &[FileSymbols]) -> Vec<FunctionMetrics> {
             let logical_lines = count_logical_lines(&source, func.start_byte, func.end_byte);
             let complexity = compute_complexity(&source, func.start_byte, func.end_byte);
 
-            let severity = if logical_lines > 80 || complexity > 20 {
+            let severity = if logical_lines > thresholds.critical_lines || complexity > thresholds.critical_complexity {
                 Severity::Critical
-            } else if logical_lines > 40 || complexity > 10 {
+            } else if logical_lines > thresholds.warning_lines || complexity > thresholds.warning_complexity {
                 Severity::Warning
             } else {
-                continue; // Not a giant function
+                continue;
             };
 
             all_metrics.push(FunctionMetrics {
@@ -231,9 +232,9 @@ pub fn format_json(metrics: &[FunctionMetrics]) -> serde_json::Value {
     }).collect::<Vec<_>>())
 }
 
-pub fn run_split(root: &Path, json: bool) -> String {
+pub fn run_split(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
     let symbols = crate::parser::parse_all_files(root);
-    let metrics = analyze_functions(&symbols);
+    let metrics = analyze_functions(&symbols, &config.thresholds);
     if json {
         serde_json::to_string_pretty(&format_json(&metrics)).unwrap()
     } else {
@@ -285,6 +286,7 @@ mod tests {
     fn test_analyze_returns_metrics() {
         let root = std::path::Path::new("../../test-fixtures/vibe-app");
         let symbols = crate::parser::parse_all_files(root);
-        let _metrics = analyze_functions(&symbols);
+        let thresholds = crate::config::Thresholds::default();
+        let _metrics = analyze_functions(&symbols, &thresholds);
     }
 }

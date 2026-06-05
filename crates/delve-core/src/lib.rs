@@ -6,3 +6,5 @@ pub mod duplicates;
 pub mod risks;
 pub mod health;
 pub mod report;
+pub mod config;
+pub mod progress;

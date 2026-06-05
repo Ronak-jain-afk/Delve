@@ -85,9 +85,18 @@ pub fn format_unused_json(items: &[UnusedItem]) -> serde_json::Value {
     }).collect::<Vec<_>>())
 }
 
-pub fn run_deadcode(root: &Path, json: bool) -> String {
-    let graph = crate::graph::build_complete_graph(root);
+pub fn run_deadcode(root: &Path, json: bool, _config: &crate::config::DelveConfig) -> String {
+    let progress = crate::progress::Progress::new(!json);
+    progress.set_message("Parsing files...");
+    let symbols = crate::parser::parse_all_files(root);
+    progress.set_message("Analyzing dependencies...");
+    let mut graph = crate::graph::DepGraph::new(symbols);
+    graph.build();
+    graph.detect_entry_points();
+    graph.traverse_from_entry_points();
+    progress.set_message("Finding unused exports...");
     let items = find_unused(&graph);
+    progress.finish();
     if json {
         serde_json::to_string_pretty(&format_unused_json(&items)).unwrap()
     } else {

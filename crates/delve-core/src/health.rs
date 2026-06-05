@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::config::Weights;
 use crate::duplicates;
 use crate::giant_funcs::{self, Severity};
 use crate::graph::DepGraph;
@@ -81,7 +82,7 @@ impl HealthReport {
     }
 }
 
-pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics], risk_items: &[risks::RiskItem]) -> HealthReport {
+pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics], risk_items: &[risks::RiskItem], weights: &Weights, root: &Path) -> HealthReport {
     let unused_items = unused::find_unused(graph);
     let unused_file_count = unused_items.len();
 
@@ -95,20 +96,20 @@ pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics
     let long_params_count = risk_items.iter().filter(|r| r.kind == RiskKind::LongParams).count();
 
     // Count duplicates
-    let files = crate::parser::find_source_files(&get_root(graph));
-    let duplicates = duplicates::find_duplicates(&files);
-    let duplicate_count = duplicates.len();
+    let files = crate::parser::find_source_files(root);
+    let dup_clusters = duplicates::find_duplicates(&files);
+    let duplicate_count = dup_clusters.len();
 
     // Calculate score
     let mut score: isize = 100;
     if unused_file_count > 0 {
-        score -= 15; // Per file with any unused exports
+        score -= weights.unused_file as isize;
     }
-    score -= (giant_critical * 5) as isize;
-    score -= (giant_warning * 2) as isize;
-    score -= (duplicate_count * 3) as isize;
-    score -= (any_type_count * 1) as isize;
-    score -= (console_log_count * 1) as isize;
+    score -= (giant_critical * weights.giant_critical) as isize;
+    score -= (giant_warning * weights.giant_warning) as isize;
+    score -= (duplicate_count * weights.duplicate) as isize;
+    score -= (any_type_count * weights.any_type) as isize;
+    score -= (console_log_count * weights.console_log) as isize;
 
     let score = score.max(0) as usize;
 
@@ -135,26 +136,25 @@ pub fn calculate(graph: &DepGraph, giant_metrics: &[giant_funcs::FunctionMetrics
     }
 }
 
-fn get_root(graph: &DepGraph) -> &Path {
-    graph
-        .all_symbols
-        .keys()
-        .next()
-        .map(|p| Path::new(p).parent().unwrap_or(Path::new(".")))
-        .unwrap_or(Path::new("."))
-}
-
-pub fn run_health(root: &Path, json: bool) -> String {
+pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
+    let progress = crate::progress::Progress::new(!json);
+    progress.set_message("Parsing files...");
     let symbols = crate::parser::parse_all_files(root);
+    progress.set_message("Analyzing dependencies...");
     let mut graph = crate::graph::DepGraph::new(symbols);
     graph.build();
     graph.detect_entry_points();
     graph.traverse_from_entry_points();
 
-    let giant_metrics = giant_funcs::analyze_functions(&crate::parser::parse_all_files(root));
+    progress.set_message("Analyzing giant functions...");
+    let all_symbols: Vec<_> = graph.all_symbols.values().cloned().collect();
+    let giant_metrics = giant_funcs::analyze_functions(&all_symbols, &config.thresholds);
+    progress.set_message("Detecting risky patterns...");
     let risk_items = risks::detect_risks(root);
 
-    let report = calculate(&graph, &giant_metrics, &risk_items);
+    progress.set_message("Calculating health score...");
+    let report = calculate(&graph, &giant_metrics, &risk_items, &config.weights, root);
+    progress.finish();
 
     if json {
         serde_json::to_string_pretty(&serde_json::json!({
@@ -189,7 +189,9 @@ mod tests {
     #[test]
     fn test_score_100_for_clean() {
         let graph = crate::graph::DepGraph::new(Vec::new());
-        let report = calculate(&graph, &[], &[]);
+        let weights = crate::config::Weights::default();
+        let root = std::path::Path::new(".");
+        let report = calculate(&graph, &[], &[], &weights, root);
         assert_eq!(report.score, 100);
         assert_eq!(report.label, "healthy");
     }
@@ -197,6 +199,8 @@ mod tests {
     #[test]
     fn test_score_floors_at_0() {
         let graph = crate::graph::DepGraph::new(Vec::new());
+        let weights = crate::config::Weights::default();
+        let root = std::path::Path::new(".");
         let giant_metrics = vec![
             giant_funcs::FunctionMetrics {
                 file_path: "x.ts".into(),
@@ -208,7 +212,6 @@ mod tests {
                 severity: Severity::Critical,
             },
         ];
-        // Add enough deductions to go below 0
         let risk_items = (0..100)
             .map(|_| risks::RiskItem {
                 kind: RiskKind::AnyType,
@@ -217,14 +220,15 @@ mod tests {
                 detail: "".into(),
             })
             .collect::<Vec<_>>();
-        let report = calculate(&graph, &giant_metrics, &risk_items);
+        let report = calculate(&graph, &giant_metrics, &risk_items, &weights, root);
         assert_eq!(report.score, 0, "should floor at 0");
     }
 
     #[test]
     fn test_health_on_fixtures() {
         let root = std::path::Path::new("../../test-fixtures/vibe-app");
-        let output = run_health(root, false);
+        let config = crate::config::DelveConfig::default();
+        let output = run_health(root, false, &config);
         assert!(output.contains("HEALTH SCORE"), "should have health score");
         assert!(output.contains("Todo"), "should have todo list");
     }
