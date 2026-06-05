@@ -8,7 +8,7 @@ use yansi::Paint;
 
 use crate::parser;
 
-const WINDOW_SIZE: usize = 15;
+const WINDOW_SIZE: usize = 25;
 
 #[derive(Debug, Clone)]
 pub struct DupLocation {

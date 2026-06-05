@@ -399,7 +399,27 @@ fn extract_variable_exports(
     }
 }
 
+fn is_require_call(node: Node, source: &str) -> Option<String> {
+    if node.kind() != "call_expression" {
+        return None;
+    }
+    let func = node.child_by_field_name("function")?;
+    if node_text(source, func) != "require" {
+        return None;
+    }
+    let args = node.child_by_field_name("arguments")?;
+    let mut cursor = args.walk();
+    for arg in args.children(&mut cursor) {
+        if arg.kind() == "string" || arg.kind() == "string_fragment" {
+            let raw = node_text(source, arg);
+            return Some(raw.trim_matches('\'').trim_matches('"').to_string());
+        }
+    }
+    None
+}
+
 fn collect_imports(node: Node, source: &str, file_path: &str, imports: &mut Vec<Import>) {
+    // ES import statements
     if node.kind() == "import_statement" {
         let mut symbols = Vec::new();
         let mut source_module = String::new();
@@ -460,6 +480,47 @@ fn collect_imports(node: Node, source: &str, file_path: &str, imports: &mut Vec<
             });
         }
         return;
+    }
+
+    // CommonJS require() calls: const foo = require('./bar')
+    if node.kind() == "variable_declarator" {
+        if let Some(value) = node.child_by_field_name("value") {
+            if let Some(source_module) = is_require_call(value, source) {
+                let symbol = node
+                    .child_by_field_name("name")
+                    .map(|n| node_text(source, n).to_string())
+                    .unwrap_or_else(|| "default".to_string());
+                imports.push(Import {
+                    symbols: vec![symbol],
+                    source: source_module,
+                    start_line: node.start_position().row + 1,
+                    end_line: node.end_position().row + 1,
+                    file_path: file_path.to_string(),
+                    is_default: true,
+                    is_namespace: false,
+                });
+                return;
+            }
+        }
+    }
+
+    // Standalone require('./foo') calls
+    if node.kind() == "expression_statement" {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if let Some(source_module) = is_require_call(child, source) {
+                imports.push(Import {
+                    symbols: vec!["default".to_string()],
+                    source: source_module,
+                    start_line: node.start_position().row + 1,
+                    end_line: node.end_position().row + 1,
+                    file_path: file_path.to_string(),
+                    is_default: true,
+                    is_namespace: false,
+                });
+                return;
+            }
+        }
     }
 
     let mut cursor = node.walk();
