@@ -20,14 +20,11 @@ const TRIPLES = {
 const triple = TRIPLES[`${platform}-${arch}`];
 if (!triple) {
   console.error(`Unsupported platform: ${platform}-${arch}`);
-  console.error('Build from source: cd crates/delve-core && cargo build --release');
   process.exit(1);
 }
 
 const pkg = require('../package.json');
 const version = pkg.version;
-const owner = 'Ronak-jain-afk';
-const repo = 'Delve';
 
 const binDir = path.join(__dirname, '..', 'node_modules', '.bin');
 const binaryPath = path.join(binDir, BINARY_NAME);
@@ -38,7 +35,7 @@ if (existsSync(binaryPath)) {
 
 async function download() {
   const ext = platform === 'win32' ? '.exe' : '';
-  const url = `https://github.com/${owner}/${repo}/releases/download/v${version}/delve-core-${triple}${ext}`;
+  const url = `https://github.com/Ronak-jain-afk/Delve/releases/download/v${version}/delve-core-${triple}${ext}`;
 
   console.log(`Downloading delve-core v${version} for ${platform}-${arch}...`);
 
@@ -77,6 +74,5 @@ download().catch((err) => {
   console.error('To build from source:');
   console.error('  git clone https://github.com/Ronak-jain-afk/Delve.git');
   console.error('  cd Delve/crates/delve-core && cargo build --release');
-  console.error('  cp target/release/delve-core /usr/local/bin/');
   process.exit(1);
 });

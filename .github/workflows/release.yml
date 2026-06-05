@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   cross-compile:
     strategy:
@@ -24,10 +28,81 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install cross toolchain (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          targets: ${{ matrix.target }}
+
       - run: cargo build --release --target ${{ matrix.target }}
         working-directory: crates/delve-core
+
+      - name: Package binary
+        shell: bash
+        run: |
+          EXT=""
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            EXT=".exe"
+          fi
+          SRC="crates/delve-core/target/${{ matrix.target }}/release/delve-core${EXT}"
+          DST="delve-core-${{ matrix.target }}${EXT}"
+          cp "$SRC" "$DST"
+          sha256sum "$DST" > "${DST}.sha256"
+
       - uses: actions/upload-artifact@v4
         with:
           name: delve-core-${{ matrix.target }}
-          path: crates/delve-core/target/${{ matrix.target }}/release/delve-core${{ runner.os == 'Windows' && '.exe' || '' }}
+          path: delve-core-${{ matrix.target }}*
+          if-no-files-found: error
+
+  create-release:
+    needs: cross-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: delve-core-*
+          merge-multiple: true
+
+      - run: ls -la
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: delve-core-*
+          generate_release_notes: true
+
+  publish-npm:
+    needs: cross-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: delve-core-*
+          merge-multiple: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish platform packages
+        run: |
+          for dir in packages/cli-darwin-x64 packages/cli-darwin-arm64 packages/cli-linux-x64 packages/cli-linux-arm64 packages/cli-win32-x64 packages/cli-win32-arm64; do
+            echo "Publishing $dir..."
+            cd "$dir"
+            npm publish --access public --provenance
+            cd -
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish main package
+        run: npm publish --access public --provenance
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

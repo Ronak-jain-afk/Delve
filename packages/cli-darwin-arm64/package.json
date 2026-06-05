@@ -1,0 +1,14 @@
+{
+  "name": "@delve/cli-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Delve static analysis CLI for macOS arm64 (Apple Silicon)",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "bin": {
+    "delve": "bin/delve.js"
+  },
+  "scripts": {
+    "postinstall": "node bin/download.js"
+  },
+  "license": "MIT"
+}

@@ -8,12 +8,6 @@ const BINARY_NAME = process.platform === 'win32' ? 'delve-core.exe' : 'delve-cor
 function findBinary() {
   const searchPaths = [
     path.join(__dirname, '..', 'node_modules', '.bin', BINARY_NAME),
-    path.join(__dirname, '..', '..', 'cli-darwin-x64', BINARY_NAME),
-    path.join(__dirname, '..', '..', 'cli-darwin-arm64', BINARY_NAME),
-    path.join(__dirname, '..', '..', 'cli-linux-x64', BINARY_NAME),
-    path.join(__dirname, '..', '..', 'cli-linux-arm64', BINARY_NAME),
-    path.join(__dirname, '..', '..', 'cli-win32-x64', BINARY_NAME),
-    path.join(__dirname, '..', '..', 'cli-win32-arm64', BINARY_NAME),
     path.join(__dirname, '..', '..', '..', 'target', 'release', BINARY_NAME),
     path.join(__dirname, '..', '..', '..', 'target', 'debug', BINARY_NAME),
   ];
@@ -25,9 +19,7 @@ function findBinary() {
 
 const binary = findBinary();
 if (!binary) {
-  console.error('delve-core binary not found.');
-  console.error('Install: npm install -g @delve/cli');
-  console.error('Build: cd crates/delve-core && cargo build --release');
+  console.error('delve-core binary not found. Run: npm install -g @delve/cli');
   process.exit(1);
 }
 
