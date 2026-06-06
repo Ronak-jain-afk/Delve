@@ -59,4 +59,4 @@ test-fixtures/           Sample JS/TS codebases for testing
 2. The release workflow cross-compiles for 6 targets (linux/macos/windows × x64/arm64)
 3. SHA-256 checksums are generated for each binary
 4. Binaries are uploaded to the GitHub Release
-5. All 7 npm packages are published (`@ronak-jain-afk/cli`, `@ronak-jain-afk/cli-darwin-x64`, etc.)
+5. All 7 npm packages are published (`@glimpsecode/cli`, `@glimpsecode/cli-darwin-x64`, etc.)

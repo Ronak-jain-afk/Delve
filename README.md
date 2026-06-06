@@ -7,7 +7,7 @@ Delve is a CLI tool that finds dead code, giant functions, duplicates, and risky
 ## Install
 
 ```bash
-npm install -g @ronak-jain-afk/cli
+npm install -g @glimpsecode/cli
 delve audit
 ```
 

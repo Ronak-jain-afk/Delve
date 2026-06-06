@@ -155,7 +155,7 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
     }
 }
 
-pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
+pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) -> crate::CommandResult {
     let progress = crate::progress::Progress::new(!json);
     progress.set_message("Parsing files...");
     let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
@@ -175,7 +175,7 @@ pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) 
     let report = calculate_with_ignore(&graph, &giant_metrics, &risk_items, &config.weights, root, &config.ignore);
     progress.finish();
 
-    if json {
+    let output = if json {
         serde_json::to_string_pretty(&serde_json::json!({
             "score": report.score,
             "label": report.label,
@@ -204,7 +204,9 @@ pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) 
             output.push_str(&format!("    • {}\n", todo));
         }
         output
-    }
+    };
+    let exit_code = if report.score >= 70 { 0 } else if report.score >= 40 { 1 } else { 2 };
+    crate::CommandResult { output, exit_code, score: report.score }
 }
 
 #[cfg(test)]
@@ -253,8 +255,8 @@ mod tests {
     fn test_health_on_fixtures() {
         let root = std::path::Path::new("../../test-fixtures/vibe-app");
         let config = crate::config::DelveConfig::default();
-        let output = run_health(root, false, &config);
-        assert!(output.contains("HEALTH SCORE"), "should have health score");
-        assert!(output.contains("Todo"), "should have todo list");
+        let result = run_health(root, false, &config);
+        assert!(result.output.contains("HEALTH SCORE"), "should have health score");
+        assert!(result.output.contains("Todo"), "should have todo list");
     }
 }

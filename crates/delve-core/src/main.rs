@@ -21,6 +21,18 @@ struct Cli {
     /// Config file path
     #[arg(short, long)]
     config: Option<PathBuf>,
+
+    /// Fail if health score is below this threshold (audit/health only)
+    #[arg(long, default_value_t = 40, global = true)]
+    fail_on: usize,
+
+    /// Output GitHub Actions annotations
+    #[arg(long, global = true)]
+    github_annotations: bool,
+
+    /// Output SARIF format
+    #[arg(long, global = true)]
+    sarif: bool,
 }
 
 #[derive(Subcommand)]
@@ -41,31 +53,42 @@ fn main() {
     let cli = Cli::parse();
     let root = &cli.path;
     let config = DelveConfig::load(cli.config.as_deref(), root);
+    let json = cli.json || cli.sarif;
+    let annotations = cli.github_annotations;
 
-    match &cli.command {
+    let result = match &cli.command {
         Some(Commands::Audit) => {
-            let output = delve_core::report::run_full_audit(root, cli.json, &config);
-            print!("{}", output);
+            delve_core::report::run_full_audit(root, json, cli.sarif, annotations, &config)
         }
         Some(Commands::Deadcode) => {
-            let output = delve_core::unused::run_deadcode(root, cli.json, &config);
-            print!("{}", output);
+            delve_core::unused::run_deadcode(root, json, annotations, &config)
         }
         Some(Commands::Split) => {
-            let output = delve_core::giant_funcs::run_split(root, cli.json, &config);
-            print!("{}", output);
+            delve_core::giant_funcs::run_split(root, json, &config)
         }
         Some(Commands::Dup) => {
-            let output = delve_core::duplicates::run_dup(root, cli.json, &config);
-            print!("{}", output);
+            delve_core::duplicates::run_dup(root, json, &config)
         }
         Some(Commands::Health) => {
-            let output = delve_core::health::run_health(root, cli.json, &config);
-            print!("{}", output);
+            delve_core::health::run_health(root, json, &config)
         }
         None => {
-            let output = delve_core::report::run_full_audit(root, cli.json, &config);
-            print!("{}", output);
+            delve_core::report::run_full_audit(root, json, cli.sarif, annotations, &config)
         }
+    };
+
+    print!("{}", result.output);
+    eprintln!("DEBUG: score={}, fail_on={}, exit_code={}", result.score, cli.fail_on, result.exit_code);
+
+    if result.score < cli.fail_on {
+        eprintln!("DEBUG: failing due to --fail-on threshold");
+        std::process::exit(1);
     }
+
+    if cli.sarif {
+        // SARIF implies exit code 0 for valid output
+        return;
+    }
+
+    std::process::exit(result.exit_code);
 }

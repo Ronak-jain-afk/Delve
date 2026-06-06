@@ -8,7 +8,17 @@ use crate::graph::DepGraph;
 use crate::risks;
 use crate::unused;
 
-pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
+fn maybe_add_annotations(output: &mut String, annotations: bool, prefix: &str, items: &[unused::UnusedItem]) {
+    if !annotations {
+        return;
+    }
+    for item in items {
+        let file = item.file_path.replace('\\', "/");
+        output.push_str(&format!("::warning file={},line={},title={}::{} is {} and never imported\n", file, item.line, prefix, item.symbol, item.kind));
+    }
+}
+
+pub fn run_full_audit(root: &Path, json: bool, sarif: bool, annotations: bool, config: &crate::config::DelveConfig) -> crate::CommandResult {
     let progress = crate::progress::Progress::new(!json);
 
     // Parse once, reuse everywhere
@@ -32,12 +42,108 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
     let files = crate::parser::find_source_files_with_ignore(root, &config.ignore);
     let dup_clusters = duplicates::find_duplicates(&files);
 
+    let unused_items = unused::find_unused(&graph);
+    let health = crate::health::calculate(&graph, &giant_metrics, &risk_items, &config.weights, root);
+
+    if sarif {
+        progress.finish();
+        let mut results = Vec::new();
+
+        for item in &unused_items {
+            let file_uri = format!("{}", std::path::Path::new(&item.file_path).canonicalize().ok().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| item.file_path.clone()));
+            results.push(serde_json::json!({
+                "ruleId": "delve/unused-export",
+                "level": "warning",
+                "message": { "text": format!("{} is exported {}, never imported", item.symbol, item.kind) },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": { "uri": file_uri },
+                        "region": { "startLine": item.line }
+                    }
+                }]
+            }));
+        }
+
+        for m in &giant_metrics {
+            let sev = match m.severity {
+                giant_funcs::Severity::Critical => "error",
+                giant_funcs::Severity::Warning => "warning",
+            };
+            results.push(serde_json::json!({
+                "ruleId": "delve/giant-function",
+                "level": sev,
+                "message": { "text": format!("{} ({} lines, complexity {})", m.name, m.logical_lines, m.complexity) },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": { "uri": format!("file://{}", m.file_path) },
+                        "region": { "startLine": m.start_line }
+                    }
+                }]
+            }));
+        }
+
+        for cluster in &dup_clusters {
+            if let Some(loc) = cluster.locations.first() {
+                results.push(serde_json::json!({
+                    "ruleId": "delve/duplicate-block",
+                    "level": "warning",
+                    "message": { "text": format!("Duplicate block ({} tokens) found in {} locations", cluster.token_count, cluster.locations.len()) },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": { "uri": format!("file://{}", loc.file_path) },
+                            "region": { "startLine": loc.start_line }
+                        }
+                    }]
+                }));
+            }
+        }
+
+        for risk in &risk_items {
+            let (rule_id, level) = match risk.kind {
+                crate::risks::RiskKind::AnyType => ("delve/any-type", "warning"),
+                crate::risks::RiskKind::ConsoleLog => ("delve/console-log", "warning"),
+                crate::risks::RiskKind::Debugger => ("delve/debugger", "error"),
+                crate::risks::RiskKind::DeepNesting => ("delve/deep-nesting", "warning"),
+                crate::risks::RiskKind::LongParams => ("delve/long-params", "warning"),
+            };
+            results.push(serde_json::json!({
+                "ruleId": rule_id,
+                "level": level,
+                "message": { "text": &risk.detail },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": { "uri": format!("file://{}", risk.file_path) },
+                        "region": { "startLine": risk.line }
+                    }
+                }]
+            }));
+        }
+
+        let output = serde_json::to_string_pretty(&serde_json::json!({
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {
+                    "driver": {
+                        "name": "delve",
+                        "informationUri": "https://github.com/Ronak-jain-afk/Delve",
+                        "version": "0.1.1"
+                    }
+                },
+                "results": results,
+                "properties": {
+                    "healthScore": health.score,
+                    "circularDependencies": graph.find_circular_dependencies().len()
+                }
+            }]
+        })).unwrap();
+        let exit_code = if health.score >= 70 { 0 } else if health.score >= 40 { 1 } else { 2 };
+        return crate::CommandResult { output, exit_code, score: health.score };
+    }
+
     if json {
         progress.finish();
-        let unused_items = unused::find_unused(&graph);
-        let health = crate::health::calculate(&graph, &giant_metrics, &risk_items, &config.weights, root);
-
-        serde_json::to_string_pretty(&serde_json::json!({
+        let output = serde_json::to_string_pretty(&serde_json::json!({
             "score": health.score,
             "unused": unused::format_unused_json(&unused_items),
             "giantFunctions": giant_funcs::format_json(&giant_metrics),
@@ -55,7 +161,9 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
                 serde_json::json!(cycle)
             }).collect::<Vec<_>>(),
         }))
-        .unwrap()
+        .unwrap();
+        let exit_code = if health.score >= 70 { 0 } else if health.score >= 40 { 1 } else { 2 };
+        return crate::CommandResult { output, exit_code, score: health.score };
     } else {
         let mut output = format!("{}\n\n", Paint::bold(&format!("Delve Audit — {}", root.display())));
 
@@ -64,6 +172,7 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
             output.push_str(&format!("{}\n  No unused exports found.\n\n", Paint::yellow("UNUSED CODE")));
         } else {
             output.push_str(&unused::format_unused_report(&unused_items));
+            maybe_add_annotations(&mut output, annotations, "delve-unused", &unused_items);
             output.push('\n');
         }
 
@@ -111,6 +220,7 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
         }
 
         progress.finish();
-        output
+        let exit_code = if health.score >= 70 { 0 } else if health.score >= 40 { 1 } else { 2 };
+        crate::CommandResult { output, exit_code, score: health.score }
     }
 }

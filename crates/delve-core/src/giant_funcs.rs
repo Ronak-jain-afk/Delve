@@ -234,14 +234,16 @@ pub fn format_json(metrics: &[FunctionMetrics]) -> serde_json::Value {
     }).collect::<Vec<_>>())
 }
 
-pub fn run_split(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
+pub fn run_split(root: &Path, json: bool, config: &crate::config::DelveConfig) -> crate::CommandResult {
     let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
     let metrics = analyze_functions(&symbols, &config.thresholds);
-    if json {
+    let output = if json {
         serde_json::to_string_pretty(&format_json(&metrics)).unwrap()
     } else {
         format_report(&metrics)
-    }
+    };
+    let exit_code = if metrics.is_empty() { 0 } else { 1 };
+    crate::CommandResult { output, exit_code, score: if metrics.is_empty() { 100 } else { 0 } }
 }
 
 #[cfg(test)]

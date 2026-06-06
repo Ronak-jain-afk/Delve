@@ -90,7 +90,7 @@ pub fn format_unused_json(items: &[UnusedItem]) -> serde_json::Value {
     }).collect::<Vec<_>>())
 }
 
-pub fn run_deadcode(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
+pub fn run_deadcode(root: &Path, json: bool, _annotations: bool, config: &crate::config::DelveConfig) -> crate::CommandResult {
     let progress = crate::progress::Progress::new(!json);
     progress.set_message("Parsing files...");
     let symbols = crate::parser::parse_all_files_with_ignore(root, &config.ignore);
@@ -102,11 +102,19 @@ pub fn run_deadcode(root: &Path, json: bool, config: &crate::config::DelveConfig
     progress.set_message("Finding unused exports...");
     let items = find_unused(&graph);
     progress.finish();
-    if json {
+    let mut output = if json {
         serde_json::to_string_pretty(&format_unused_json(&items)).unwrap()
     } else {
         format_unused_report(&items)
+    };
+    if _annotations && !json {
+        for item in &items {
+            let file = item.file_path.replace('\\', "/");
+            output.push_str(&format!("::warning file={},line={},title=delve-unused::{} is {} and never imported\n", file, item.line, item.symbol, item.kind));
+        }
     }
+    let exit_code = if items.is_empty() { 0 } else { 1 };
+    crate::CommandResult { output, exit_code, score: if items.is_empty() { 100 } else { 0 } }
 }
 
 #[cfg(test)]

@@ -19,7 +19,7 @@ function findBinary() {
 
 const binary = findBinary();
 if (!binary) {
-  console.error('delve-core binary not found. Run: npm install -g @ronak-jain-afk/cli');
+  console.error('delve-core binary not found. Run: npm install -g @glimpsecode/cli');
   process.exit(1);
 }
 

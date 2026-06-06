@@ -28,7 +28,7 @@ All commands accept `--json` for CI/editor integration.
 
 ```
 [npm package]                 [Rust binary]
-@ronak-jain-afk/cli      ──spawn──▶   delve-core
+@glimpsecode/cli      ──spawn──▶   delve-core
     │                              │
     └─── postinstall         ┌─────┴─────┐
          downloads binary    │ tree-sitter│

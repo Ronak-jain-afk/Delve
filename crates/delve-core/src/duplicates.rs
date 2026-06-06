@@ -221,14 +221,16 @@ pub fn format_report(clusters: &[DuplicateCluster]) -> String {
     output
 }
 
-pub fn run_dup(root: &Path, json: bool, config: &crate::config::DelveConfig) -> String {
+pub fn run_dup(root: &Path, json: bool, config: &crate::config::DelveConfig) -> crate::CommandResult {
     let progress = crate::progress::Progress::new(!json);
     progress.set_message("Parsing files...");
     let files = parser::find_source_files_with_ignore(root, &config.ignore);
     progress.set_message("Detecting duplicates...");
     let clusters = find_duplicates(&files);
     progress.finish();
-    format_report(&clusters)
+    let output = format_report(&clusters);
+    let exit_code = if clusters.is_empty() { 0 } else { 1 };
+    crate::CommandResult { output, exit_code, score: if clusters.is_empty() { 100 } else { 0 } }
 }
 
 #[cfg(test)]

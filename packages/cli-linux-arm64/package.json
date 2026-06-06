@@ -1,5 +1,5 @@
 {
-  "name": "@ronak-jain-afk/cli-linux-arm64",
+  "name": "@glimpsecode/cli-linux-arm64",
   "version": "0.1.1",
   "description": "Delve static analysis CLI for Linux arm64",
   "os": ["linux"],

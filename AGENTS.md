@@ -11,7 +11,7 @@ test-fixtures/       Sample JS/TS codebases for testing
 ## Architecture
 
 - Rust binary (`delve-core`) does all parsing/analysis.
-- npm package (`@ronak-jain-afk/cli`) spawns the binary.
+- npm package (`@glimpsecode/cli`) spawns the binary.
 - Tree-sitter parses TS/JS/JSX/TSX/MJS/CJS. Rayon for parallelism.
 - No LSP, no watch mode, no auto-refactoring — pure static analysis CLIs.
 
