@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use delve_core::config::DelveConfig;
 
 #[derive(Parser)]
-#[command(name = "delve-core", version, about = "Static analysis for TS/JS")]
+#[command(name = "glimpse", version, about = "Static analysis for TS/JS")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

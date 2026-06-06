@@ -55,15 +55,15 @@ jobs:
           if [[ "${{ matrix.os }}" == windows-* ]]; then
             EXT=".exe"
           fi
-          SRC="target/${{ matrix.target }}/release/delve-core${EXT}"
-          DST="delve-core-${{ matrix.target }}${EXT}"
+          SRC="target/${{ matrix.target }}/release/glimpse${EXT}"
+          DST="glimpse-${{ matrix.target }}${EXT}"
           cp "$SRC" "$DST"
           sha256sum "$DST" > "${DST}.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: delve-core-${{ matrix.target }}
-          path: delve-core-${{ matrix.target }}*
+          name: glimpse-${{ matrix.target }}
+          path: glimpse-${{ matrix.target }}*
           if-no-files-found: error
 
   create-release:
@@ -72,14 +72,14 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: delve-core-*
+          pattern: glimpse-*
           merge-multiple: true
 
       - run: ls -la
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: delve-core-*
+          files: glimpse-*
           generate_release_notes: true
 
   publish-npm:
@@ -90,7 +90,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: delve-core-*
+          pattern: glimpse-*
           merge-multiple: true
 
       - uses: actions/setup-node@v4

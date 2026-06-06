@@ -8,7 +8,7 @@ Delve is a CLI tool that finds dead code, giant functions, duplicates, and risky
 
 ```bash
 npm install -g @glimpsecode/cli
-delve audit
+glimpse audit
 ```
 
 Or build from source:
@@ -22,11 +22,11 @@ cargo build --release -p delve-core
 
 | Command | What it does |
 |---------|-------------|
-| `delve audit` | Full report: unused code, giant functions, duplicates, risky patterns, health score |
-| `delve deadcode` | Unused exports only |
-| `delve split` | Giant functions with line ranges + complexity |
-| `delve dup` | Duplicate code blocks with locations |
-| `delve health` | Single 0–100 score + todo list |
+| `glimpse audit` | Full report: unused code, giant functions, duplicates, risky patterns, health score |
+| `glimpse deadcode` | Unused exports only |
+| `glimpse split` | Giant functions with line ranges + complexity |
+| `glimpse dup` | Duplicate code blocks with locations |
+| `glimpse health` | Single 0–100 score + todo list |
 
 All accept `--json` for CI/tooling.
 
@@ -34,22 +34,22 @@ All accept `--json` for CI/tooling.
 
 ```bash
 # Run from project root (auto-detects entry points)
-delve audit
+glimpse audit
 
 # JSON output for CI
-delve audit --json
+glimpse audit --json
 
 # Specific analysis
-delve deadcode
-delve split
-delve dup
-delve health
+glimpse deadcode
+glimpse split
+glimpse dup
+glimpse health
 
 # Analyze a subdirectory
-delve audit --path src/
+glimpse audit --path src/
 
 # Custom config
-delve audit --config .delve.json
+glimpse audit --config .delve.json
 ```
 
 ## Config

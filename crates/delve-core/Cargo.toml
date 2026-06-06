@@ -3,6 +3,10 @@ name = "delve-core"
 version = "0.2.0"
 edition = "2021"
 
+[[bin]]
+name = "glimpse"
+path = "src/main.rs"
+
 [dependencies]
 tree-sitter = "0.25"
 tree-sitter-typescript = "0.23"

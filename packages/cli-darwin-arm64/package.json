@@ -5,7 +5,7 @@
   "os": ["darwin"],
   "cpu": ["arm64"],
   "bin": {
-    "delve": "bin/delve.js"
+    "glimpse": "bin/glimpse.js"
   },
   "repository": {
     "type": "git",

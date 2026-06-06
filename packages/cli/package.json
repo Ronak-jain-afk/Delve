@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Static analysis for TS/JS — unused code, giant functions, duplicates, health score",
   "bin": {
-    "delve": "bin/delve.js"
+    "glimpse": "bin/glimpse.js"
   },
   "scripts": {
     "postinstall": "node bin/download.js"

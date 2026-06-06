@@ -459,7 +459,7 @@ delve/
 
 ### 9.5 Verify end-to-end flow
 - `npm install -g @glimpsecode/cli`
-- `delve audit --path ./some-project`
+- `glimpse audit --path ./some-project`
 - Test on Windows, macOS, Linux
 - Test with network failure (binary download fails → clear error)
 
@@ -514,7 +514,7 @@ delve/
 
 ### 11.1 Write README
 - Badge section: build status, npm version, MIT license
-- Quick start: `npx delve audit`
+- Quick start: `npx glimpse audit`
 - Features overview (one paragraph each)
 - Output examples (terminal + JSON)
 - Installation: global vs npx
@@ -686,13 +686,13 @@ Each task is designed to be independently implementable, testable, and reviewabl
 ## Phase 16: Auto-Fix & Interactive Mode
 
 ### 16.1 Basic `--fix` for unused code
-- `delve deadcode --fix` — add `/* delve:used */` comment above each false positive
-- `delve deadcode --fix --aggressive` — remove unused export statements (with git backup)
+- `glimpse deadcode --fix` — add `/* delve:used */` comment above each false positive
+- `glimpse deadcode --fix --aggressive` — remove unused export statements (with git backup)
 - Generate a diff file before making changes
-- Dry-run mode: `delve deadcode --fix --dry-run` (show what would change, make no filesystem changes)
+- Dry-run mode: `glimpse deadcode --fix --dry-run` (show what would change, make no filesystem changes)
 
 ### 16.2 Auto-fix for console.log
-- `delve audit --fix` — wrap each `console.log(...)` with `// eslint-disable-next-line no-console` or replace with `// DELVE: remove console.log`
+- `glimpse audit --fix` — wrap each `console.log(...)` with `// eslint-disable-next-line no-console` or replace with `// GLIMPSE: remove console.log`
 - Option to remove console.log entirely (except in test files)
 
 ### 16.3 Refactoring suggestions for giant functions
@@ -703,7 +703,7 @@ Each task is designed to be independently implementable, testable, and reviewabl
 - Generate the suggested extracted function as a code snippet in the report
 
 ### 16.4 Interactive TUI mode
-- `delve explore` — terminal UI using `ratatui` crate
+- `glimpse explore` — terminal UI using `ratatui` crate
 - Navigate results with arrow keys
 - Jump to file:line in editor (open $EDITOR)
 - Filter by severity, file, kind
@@ -726,7 +726,7 @@ Each task is designed to be independently implementable, testable, and reviewabl
 - Auto-detect `GITHUB_ACTIONS` env var and switch to annotation mode
 
 ### 17.3 Exit code semantics
-- `delve audit`: exit 0 if health ≥ 70, exit 1 if health 40–69, exit 2 if health < 40
+- `glimpse audit`: exit 0 if health ≥ 70, exit 1 if health 40–69, exit 2 if health < 40
 - Per-command: exit 0 if no findings, exit 1 if any findings
 - `--fail-on <threshold>`: custom exit code threshold
 - `--max-warnings <N>`: exit 1 if more than N findings (like ESLint)
@@ -785,7 +785,7 @@ Each task is designed to be independently implementable, testable, and reviewabl
 - `.delve.json` extends from a base config: `"extends": ["recommended", "./my-base.json"]`
 - Built-in presets: `"recommended"` (default), `"strict"`, `"relaxed"`
 - Per-preset weight and threshold overrides
-- `delve init` command: interactive `.delve.json` generator
+- `glimpse init` command: interactive `.delve.json` generator
 
 ---
 
@@ -793,20 +793,20 @@ Each task is designed to be independently implementable, testable, and reviewabl
 
 ### 20.1 Trend tracking & history
 - Save health scores to `.delve-history.json` (timestamp + score + finding counts)
-- `delve trend` command: show score over time (last 7 days, 30 days, all)
+- `glimpse trend` command: show score over time (last 7 days, 30 days, all)
 - ASCII sparkline in terminal
 - `--json` includes historical data for dashboard integration
 
-### 20.2 Diff analysis (`delve diff`)
-- `delve diff --base main` — run analysis only on changed files vs a git ref
-- `delve diff --base v0.1.0` — compare current state to a tag
+### 20.2 Diff analysis (`glimpse diff`)
+- `glimpse diff --base main` — run analysis only on changed files vs a git ref
+- `glimpse diff --base v0.1.0` — compare current state to a tag
 - Health delta: "Score went from 85 → 72 (bad)" or "72 → 85 (good)"
 - Useful in CI: gate PRs based on health score change
+### 20.3 Summary mode (`glimpse summary`)
 
-### 20.3 Summary mode (`delve summary`)
-- `delve summary` — condensed single-line output: "health: 85, issues: 12 (3 critical, 9 warning)"
+- `glimpse summary` — condensed single-line output: "health: 85, issues: 12 (3 critical, 9 warning)"
 - Perfect for commit messages, Slack webhooks, status badges
-- `delve summary --badge` — generate a shields.io-style SVG badge
+- `glimpse summary --badge` — generate a shields.io-style SVG badge
 
 ### 20.4 Machine-readable output enhancements
 - `--ndjson` flag: newline-delimited JSON (stream one finding per line)

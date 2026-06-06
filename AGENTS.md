@@ -19,11 +19,11 @@ test-fixtures/       Sample JS/TS codebases for testing
 
 | Command | What it does |
 |---------|-------------|
-| `delve audit` | Full report: unused code, giant functions, duplicates, risky patterns, health score |
-| `delve deadcode` | Unused exports only |
-| `delve split` | Giant functions with line ranges + complexity |
-| `delve dup` | Duplicate code blocks with locations |
-| `delve health` | Single 0–100 score + todo list |
+| `glimpse audit` | Full report: unused code, giant functions, duplicates, risky patterns, health score |
+| `glimpse deadcode` | Unused exports only |
+| `glimpse split` | Giant functions with line ranges + complexity |
+| `glimpse dup` | Duplicate code blocks with locations |
+| `glimpse health` | Single 0–100 score + todo list |
 
 All accept `--json` for CI/tooling.
 

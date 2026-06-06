@@ -3,7 +3,7 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const BINARY_NAME = process.platform === 'win32' ? 'delve-core.exe' : 'delve-core';
+const BINARY_NAME = process.platform === 'win32' ? 'glimpse.exe' : 'glimpse';
 
 function findBinary() {
   const searchPaths = [
@@ -19,7 +19,7 @@ function findBinary() {
 
 const binary = findBinary();
 if (!binary) {
-  console.error('delve-core binary not found. Run: npm install -g @glimpsecode/cli');
+  console.error('glimpse binary not found. Run: npm install -g @glimpsecode/cli');
   process.exit(1);
 }
 

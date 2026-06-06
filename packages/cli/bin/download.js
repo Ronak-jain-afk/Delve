@@ -6,7 +6,7 @@ const { platform, arch } = process;
 const path = require('path');
 const { pipeline } = require('stream/promises');
 
-const BINARY_NAME = platform === 'win32' ? 'delve-core.exe' : 'delve-core';
+const BINARY_NAME = platform === 'win32' ? 'glimpse.exe' : 'glimpse';
 
 const TRIPLES = {
   'darwin-x64': 'x86_64-apple-darwin',
@@ -20,7 +20,7 @@ const TRIPLES = {
 const triple = TRIPLES[`${platform}-${arch}`];
 if (!triple) {
   console.error(`Unsupported platform: ${platform}-${arch}`);
-  console.error('Build from source: cd crates/delve-core && cargo build --release');
+  console.error('Build from source: cd crates/glimpse && cargo build --release');
   process.exit(1);
 }
 
@@ -38,9 +38,9 @@ if (existsSync(binaryPath)) {
 
 async function download() {
   const ext = platform === 'win32' ? '.exe' : '';
-  const url = `https://github.com/${owner}/${repo}/releases/download/v${version}/delve-core-${triple}${ext}`;
+  const url = `https://github.com/${owner}/${repo}/releases/download/v${version}/glimpse-${triple}${ext}`;
 
-  console.log(`Downloading delve-core v${version} for ${platform}-${arch}...`);
+  console.log(`Downloading glimpse v${version} for ${platform}-${arch}...`);
 
   const res = await new Promise((resolve, reject) => {
     const req = get(url, (res) => {
@@ -68,15 +68,15 @@ async function download() {
 
   await pipeline(res, createWriteStream(binaryPath));
   await chmod(binaryPath, 0o755);
-  console.log(`Installed delve-core at ${binaryPath}`);
+  console.log(`Installed glimpse at ${binaryPath}`);
 }
 
 download().catch((err) => {
-  console.error(`Failed to download delve-core binary: ${err.message}`);
+  console.error(`Failed to download glimpse binary: ${err.message}`);
   console.error('');
   console.error('To build from source:');
   console.error('  git clone https://github.com/Ronak-jain-afk/Delve.git');
-  console.error('  cd Delve/crates/delve-core && cargo build --release');
-  console.error('  cp target/release/delve-core /usr/local/bin/');
+  console.error('  cd Delve/crates/glimpse && cargo build --release');
+  console.error('  cp target/release/glimpse /usr/local/bin/');
   process.exit(1);
 });
