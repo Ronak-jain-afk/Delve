@@ -161,6 +161,7 @@ pub fn run_full_audit(root: &Path, json: bool, sarif: bool, annotations: bool, c
             "circularDependencies": graph.find_circular_dependencies().iter().map(|cycle| {
                 serde_json::json!(cycle)
             }).collect::<Vec<_>>(),
+            "dependencies": crate::unused_deps::format_json(&crate::unused_deps::find_unused_dependencies(&graph, root)),
         }))
         .unwrap();
         let exit_code = if health.score >= 70 { 0 } else if health.score >= 40 { 1 } else { 2 };
@@ -206,6 +207,14 @@ pub fn run_full_audit(root: &Path, json: bool, sarif: bool, annotations: bool, c
             for cycle in &cycles {
                 output.push_str(&format!("  {} → {} → {}\n", Paint::red("CYCLE"), cycle.join(" → "), Paint::red(&cycle[0])));
             }
+            output.push('\n');
+        }
+
+        let dep_report = crate::unused_deps::find_unused_dependencies(&graph, root);
+        if dep_report.unused.is_empty() && dep_report.missing.is_empty() {
+            output.push_str(&format!("{}\n  No dependency issues found.\n\n", Paint::yellow("DEPENDENCIES")));
+        } else {
+            output.push_str(&crate::unused_deps::format_report(&dep_report));
             output.push('\n');
         }
 

@@ -22,6 +22,8 @@ pub struct HealthReport {
     pub deep_nesting_count: usize,
     pub long_params_count: usize,
     pub circular_dep_count: usize,
+    pub unused_dep_count: usize,
+    pub missing_dep_count: usize,
 }
 
 impl HealthReport {
@@ -82,6 +84,18 @@ impl HealthReport {
                 self.circular_dep_count
             ));
         }
+        if self.unused_dep_count > 0 {
+            todos.push(format!(
+                "Remove {} unused package.json dependency (ies)",
+                self.unused_dep_count
+            ));
+        }
+        if self.missing_dep_count > 0 {
+            todos.push(format!(
+                "Add {} missing package.json dependency (ies)",
+                self.missing_dep_count
+            ));
+        }
 
         if todos.is_empty() {
             todos.push("Nothing to fix! Your codebase looks healthy.".to_string());
@@ -118,6 +132,11 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
     let cycles = graph.find_circular_dependencies();
     let circular_dep_count = cycles.len();
 
+    // Count dependency issues
+    let dep_report = crate::unused_deps::find_unused_dependencies(graph, root);
+    let unused_dep_count = dep_report.unused.len();
+    let missing_dep_count = dep_report.missing.len();
+
     // Calculate score
     let mut score: isize = 100;
     if unused_file_count > 0 {
@@ -129,6 +148,8 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
     score -= (any_type_count * weights.any_type) as isize;
     score -= (console_log_count * weights.console_log) as isize;
     score -= (circular_dep_count * weights.circular_dep) as isize;
+    score -= (unused_dep_count * weights.unused_dep) as isize;
+    score -= (missing_dep_count * weights.missing_dep) as isize;
 
     let score = score.max(0) as usize;
 
@@ -153,6 +174,8 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
         deep_nesting_count,
         long_params_count,
         circular_dep_count,
+        unused_dep_count,
+        missing_dep_count,
     }
 }
 
@@ -190,6 +213,8 @@ pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) 
             "deepNesting": report.deep_nesting_count,
             "longParams": report.long_params_count,
             "circularDeps": report.circular_dep_count,
+            "unusedDeps": report.unused_dep_count,
+            "missingDeps": report.missing_dep_count,
             "todo": report.to_todo_list(),
         }))
         .unwrap()

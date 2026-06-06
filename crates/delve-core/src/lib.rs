@@ -1,6 +1,7 @@
 pub mod parser;
 pub mod graph;
 pub mod unused;
+pub mod unused_deps;
 pub mod giant_funcs;
 pub mod duplicates;
 pub mod risks;

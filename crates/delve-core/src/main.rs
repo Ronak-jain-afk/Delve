@@ -45,6 +45,8 @@ enum Commands {
     Split,
     /// Duplicate code blocks with locations
     Dup,
+    /// Dependency audit: unused and missing packages
+    Deps,
     /// Single 0-100 health score and todo list
     Health,
 }
@@ -68,6 +70,9 @@ fn main() {
         }
         Some(Commands::Dup) => {
             delve_core::duplicates::run_dup(root, json, &config)
+        }
+        Some(Commands::Deps) => {
+            delve_core::unused_deps::run_deps(root, json, &config)
         }
         Some(Commands::Health) => {
             delve_core::health::run_health(root, json, &config)

@@ -47,6 +47,10 @@ pub struct Weights {
     pub console_log: usize,
     #[serde(default = "default_circular_dep")]
     pub circular_dep: usize,
+    #[serde(default = "default_unused_dep")]
+    pub unused_dep: usize,
+    #[serde(default = "default_missing_dep")]
+    pub missing_dep: usize,
 }
 
 const fn default_warning_lines() -> usize { 40 }
@@ -61,6 +65,8 @@ const fn default_duplicate() -> usize { 1 }
 const fn default_any_type() -> usize { 1 }
 const fn default_console_log() -> usize { 1 }
 const fn default_circular_dep() -> usize { 5 }
+const fn default_unused_dep() -> usize { 3 }
+const fn default_missing_dep() -> usize { 5 }
 
 impl Default for Thresholds {
     fn default() -> Self {
@@ -84,6 +90,8 @@ impl Default for Weights {
             any_type: default_any_type(),
             console_log: default_console_log(),
             circular_dep: default_circular_dep(),
+            unused_dep: default_unused_dep(),
+            missing_dep: default_missing_dep(),
         }
     }
 }
