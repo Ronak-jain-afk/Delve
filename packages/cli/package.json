@@ -1,6 +1,6 @@
 {
   "name": "@glimpsecode/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Static analysis for TS/JS — unused code, giant functions, duplicates, health score",
   "bin": {
     "glimpse": "bin/glimpse.js"
@@ -9,12 +9,12 @@
     "postinstall": "node bin/download.js"
   },
   "optionalDependencies": {
-    "@glimpsecode/cli-darwin-x64": "0.2.0",
-    "@glimpsecode/cli-darwin-arm64": "0.2.0",
-    "@glimpsecode/cli-linux-x64": "0.2.0",
-    "@glimpsecode/cli-linux-arm64": "0.2.0",
-    "@glimpsecode/cli-win32-x64": "0.2.0",
-    "@glimpsecode/cli-win32-arm64": "0.2.0"
+    "@glimpsecode/cli-darwin-x64": "0.2.1",
+    "@glimpsecode/cli-darwin-arm64": "0.2.1",
+    "@glimpsecode/cli-linux-x64": "0.2.1",
+    "@glimpsecode/cli-linux-arm64": "0.2.1",
+    "@glimpsecode/cli-win32-x64": "0.2.1",
+    "@glimpsecode/cli-win32-arm64": "0.2.1"
   },
   "repository": {
     "type": "git",
