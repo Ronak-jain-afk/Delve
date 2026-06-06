@@ -592,3 +592,267 @@ delve/
 | **Total** | **61 tasks** |
 
 Each task is designed to be independently implementable, testable, and reviewable. Tasks within a phase can often be parallelized (especially phases 1, 4, 5, 6).
+
+---
+
+# v2: Production Polish & Real-World Workflow
+
+> **Theme**: Move from "it works on my machine" to "it works in your CI/CD".
+> Focus: accuracy at scale, auto-fix, CI integration, deeper analysis.
+
+---
+
+## Phase 13: Smarter Duplicate Detection
+
+### 13.1 Jaccard near-duplicate detection
+- Beyond token-normalized exact matches: use Jaccard similarity on n-gram token sets
+- Threshold: ≥ 0.7 similarity (configurable) → report as near-duplicate
+- Helps catch copy-paste with variable renaming, whitespace changes, comment changes
+- Merge near-duplicate clusters with exact-match clusters for unified reporting
+- Implementation: sliding window over normalized tokens, compute set intersection/union
+
+### 13.2 Structural duplicate detection (AST subtree hash)
+- Hash the AST subtree structure (not tokens) to find functionally identical code with different naming/strings
+- Example: two components that differ only in CSS class names and text content
+- Use tree-sitter AST node kinds and relative positions, ignore identifier/string leaves
+- Report: "Structurally identical to [file]:[line]"
+
+### 13.3 Duplicate suppression & dedup
+- `/* delve:no-dup */` comment to suppress per-block
+- Configurable `--dup-min-lines` to ignore duplicates shorter than N lines (separate from token window)
+- Cluster grouping: group duplicates by file pair for easier triage
+
+---
+
+## Phase 14: Import Resolution & Graph v2
+
+### 14.1 Barrel file detection & resolution
+- Detect barrel files (`index.ts` that only re-exports from other files)
+- Follow re-exports transitively: `export { foo } from './bar'` → `foo` is reachable if the barrel is imported
+- Mark barrel-file symbols as "re-export aliases" (don't report as unused even if the barrel itself seems unused)
+- Handle `export * from './bar'` chains properly
+
+### 14.2 Type-only import tracking
+- Distinguish `import type { X }` and `import { type X }` from value imports
+- Type-only exports consumed only by type imports should not be flagged as unused
+- Track per-export: is it a type? is it consumed only as a type?
+- Downrank type-only unused from "unused" to "info" in health score
+
+### 14.3 Dynamic import analysis
+- Statically analyze `import('./module')` strings when they're string literals
+- Track dynamic imports as soft dependencies (mark as used, but flag as "dynamically loaded")
+- Add a new report section: "DYNAMICALLY LOADED" for audit visibility
+
+### 14.4 Circular dependency detection
+- After graph build, find all strongly connected components (SCCs) with > 1 node
+- For each SCC, list the cycle path: `A.ts → B.ts → C.ts → A.ts`
+- Report section: "CIRCULAR DEPENDENCIES"
+- Score penalty: -5 per circular chain (configurable weight)
+
+### 14.5 Unused dependency detection (package.json)
+- Scan project source for all import strings (npm package names)
+- Cross-reference against `package.json` dependencies
+- Report packages imported but not in `package.json` (missing dep) and packages in `package.json` but never imported (unused dep)
+
+---
+
+## Phase 15: Catastrophic Anti-Patterns
+
+### 15.1 `any` propagation tracking
+- Not just count `any` — trace `any` propagation: `function foo(x: any): any { ... }`
+- If a function takes `any` and returns `any`, all callers also get `any`-tainted
+- Report chains: "any flows from [file]:[line] → [file]:[line] → [file]:[line]"
+
+### 15.2 Async/await misuse
+- Detect promise chains that could be `async`/`await` (`.then().catch()` in async functions)
+- Detect `await` in loops that could use `Promise.all`
+- Detect forgotten `await`: `const x = someAsyncFn()` without `await` in an async function
+- Detect floating promises (Promise returned but not awaited)
+
+### 15.3 State management smells
+- Detect `useState` + `useEffect` patterns that could be `useMemo` or derived state
+- Detect `useState` that is set but never read
+- Detect prop drilling > 3 levels deep (passing a prop through intermediate components)
+- Detect `// @ts-ignore` / `// @ts-expect-error` usage count
+
+### 15.4 Security & secrets
+- Scan for hardcoded secrets: `password =`, `apiKey =`, `token = '...'` with string literals
+- Detect `innerHTML` usage (XSS vector)
+- Detect `eval()` or `new Function()` usage
+- Flag `NODE_ENV` checks that might leak dev behavior in prod
+
+---
+
+## Phase 16: Auto-Fix & Interactive Mode
+
+### 16.1 Basic `--fix` for unused code
+- `delve deadcode --fix` — add `/* delve:used */` comment above each false positive
+- `delve deadcode --fix --aggressive` — remove unused export statements (with git backup)
+- Generate a diff file before making changes
+- Dry-run mode: `delve deadcode --fix --dry-run` (show what would change, make no filesystem changes)
+
+### 16.2 Auto-fix for console.log
+- `delve audit --fix` — wrap each `console.log(...)` with `// eslint-disable-next-line no-console` or replace with `// DELVE: remove console.log`
+- Option to remove console.log entirely (except in test files)
+
+### 16.3 Refactoring suggestions for giant functions
+- For each giant function, suggest a split point:
+  - Identify biggest code block within the function → suggest extracting it
+  - Based on indentation depth or logical operator boundaries
+  - Output as: "Consider extracting lines 42-67 into a `formatUserData()` function"
+- Generate the suggested extracted function as a code snippet in the report
+
+### 16.4 Interactive TUI mode
+- `delve explore` — terminal UI using `ratatui` crate
+- Navigate results with arrow keys
+- Jump to file:line in editor (open $EDITOR)
+- Filter by severity, file, kind
+- Mark findings as ignored (writes `/* delve:used */` or similar)
+
+---
+
+## Phase 17: CI/CD Integration
+
+### 17.1 SARIF output format
+- Add `--sarif` flag to output Static Analysis Results Interchange Format (SARIF)
+- Enables GitHub code scanning alerts, Azure DevOps, VS Code SARIF viewer
+- Map each finding to SARIF result schema: level (error/warning/note), location, message
+- Test: validate output against SARIF spec, verify GitHub imports it
+
+### 17.2 GitHub Actions annotations
+- In addition to SARIF, add `--github-annotations` flag
+- Output `::warning file=foo.ts,line=42::message` format for GitHub Actions
+- Each finding becomes an inline annotation on the PR diff
+- Auto-detect `GITHUB_ACTIONS` env var and switch to annotation mode
+
+### 17.3 Exit code semantics
+- `delve audit`: exit 0 if health ≥ 70, exit 1 if health 40–69, exit 2 if health < 40
+- Per-command: exit 0 if no findings, exit 1 if any findings
+- `--fail-on <threshold>`: custom exit code threshold
+- `--max-warnings <N>`: exit 1 if more than N findings (like ESLint)
+
+### 17.4 HTML report
+- `--html` flag generates a standalone HTML report
+- Interactive: filterable table, sort by severity, search
+- Summary dashboard: score gauge, finding counts, trend sparkline
+- Embed all findings with file:line links (clickable in IDE via `file://` protocol)
+- Dark mode toggle
+
+---
+
+## Phase 18: Performance & Scale
+
+### 18.1 Incremental parsing & caching
+- Cache parsed ASTs to disk (`.delve-cache/` directory)
+- Use file modification timestamps + content hash to invalidate cache entries
+- Only re-parse files that changed since last run
+- Target: sub-second re-analysis for small changes
+
+### 18.2 Large project optimizations
+- Lazy file loading: only parse files when they're first needed by the graph
+- Streaming output: flush results per file instead of buffering everything
+- Memory-bounded: process in batches of 500 files, flush intermediates
+- Graceful degradation: warn if project > 10,000 files, offer `--quick` mode (skip duplicates & graph)
+
+### 18.3 Parallel I/O for file discovery
+- Use multiple threads for filesystem walking (especially on slow filesystems like network drives)
+- Batch `stat()` calls across threads
+- Respect `fs.inotify.max_user_watches` limits (handle gracefully, don't crash)
+
+### 18.4 Benchmark suite
+- Create a `bench/` directory with large synthetic codebases
+- Measure: parse time, graph build, duplicate detection
+- Assert: no regressions > 10% from baseline
+- CI: run benchmarks on every PR, comment with perf diff
+
+---
+
+## Phase 19: Plugin System & Extensibility
+
+### 19.1 Custom rule API (Rust-side)
+- Define a `Rule` trait: `fn check(&self, ctx: &RuleContext) -> Vec<Finding>`
+- Built-in rules: unused exports, giant funcs, duplicates, risks
+- Users can write custom rules in Rust and register them via config: `plugins = ["./my-rules.dll"]`
+- Config-driven: `rules.my_custom_rule.enabled = true`, `rules.my_custom_rule.severity = "error"`
+
+### 19.2 Custom rule API (JS-side)
+- Allow JavaScript-based custom rules via a small DSL
+- Load `.delve/rules/*.js` files, each exports a `check(ctx)` function
+- Provide a `Finding` constructor and a `walkAST(node, callback)` helper
+- Example: `module.exports.check = (ctx) => { ... }`
+
+### 19.3 Config inheritance & presets
+- `.delve.json` extends from a base config: `"extends": ["recommended", "./my-base.json"]`
+- Built-in presets: `"recommended"` (default), `"strict"`, `"relaxed"`
+- Per-preset weight and threshold overrides
+- `delve init` command: interactive `.delve.json` generator
+
+---
+
+## Phase 20: Advanced Report UX
+
+### 20.1 Trend tracking & history
+- Save health scores to `.delve-history.json` (timestamp + score + finding counts)
+- `delve trend` command: show score over time (last 7 days, 30 days, all)
+- ASCII sparkline in terminal
+- `--json` includes historical data for dashboard integration
+
+### 20.2 Diff analysis (`delve diff`)
+- `delve diff --base main` — run analysis only on changed files vs a git ref
+- `delve diff --base v0.1.0` — compare current state to a tag
+- Health delta: "Score went from 85 → 72 (bad)" or "72 → 85 (good)"
+- Useful in CI: gate PRs based on health score change
+
+### 20.3 Summary mode (`delve summary`)
+- `delve summary` — condensed single-line output: "health: 85, issues: 12 (3 critical, 9 warning)"
+- Perfect for commit messages, Slack webhooks, status badges
+- `delve summary --badge` — generate a shields.io-style SVG badge
+
+### 20.4 Machine-readable output enhancements
+- `--ndjson` flag: newline-delimited JSON (stream one finding per line)
+- `--github-issue` flag: format as a GitHub issue body (markdown sections with code blocks)
+- `--slack` flag: format as Slack message blocks
+
+---
+
+## Summary: v2 Task Count
+
+| Phase | Task Count | Theme |
+|-------|-----------|-------|
+| 13. Smarter Duplicates | 3 | Near-duplicate, structural, dedup |
+| 14. Import Resolution v2 | 5 | Barrel files, type-only, dynamic, circular, deps |
+| 15. Catastrophic Anti-Patterns | 4 | any propagation, async, state, secrets |
+| 16. Auto-Fix & Interactive | 4 | --fix, giant function split, TUI |
+| 17. CI/CD Integration | 4 | SARIF, GH annotations, exit codes, HTML |
+| 18. Performance & Scale | 4 | Incremental, lazy, parallel, benchmark |
+| 19. Plugin System | 3 | Rust rules, JS rules, config presets |
+| 20. Report UX | 4 | Trends, diff, summary, machine output |
+| **Total** | **31 tasks** | |
+
+## Roadmap Priority
+
+**P0 (v2.0.0, next)**
+- 14.1 Barrel file detection
+- 14.2 Type-only import tracking
+- 14.4 Circular dependency detection
+- 17.1 SARIF output
+- 17.2 GitHub Actions annotations
+- 17.3 Exit code semantics
+
+**P1 (v2.1.0)**
+- 13.1 Jaccard near-duplicate
+- 14.5 Unused dependency detection
+- 16.1 Basic --fix for unused code
+- 18.1 Incremental parsing
+
+**P2 (v2.2.0)**
+- 15.1–15.4 Anti-patterns
+- 17.4 HTML report
+- 18.4 Benchmark suite
+- 20.1 Trend tracking
+
+**P3 (v2.3.0+)**
+- 19.1–19.3 Plugin system
+- 16.4 Interactive TUI
+- 20.2–20.4 Advanced output
+- 18.2 Large project optimizations

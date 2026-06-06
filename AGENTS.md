@@ -43,11 +43,34 @@ All accept `--json` for CI/tooling.
 3. Add workspace `Cargo.toml`
 4. Set up GitHub Actions cross-compile (6 targets: linux/macos/windows × x64/arm64)
 
+## v2 Roadmap (priority order)
+
+| Priority | Feature | Phase |
+|----------|---------|-------|
+| P0 | Barrel file detection, type-only imports, circular deps | 14 |
+| P0 | SARIF output, GH annotations, exit code semantics | 17 |
+| P1 | Jaccard near-duplicate detection | 13 |
+| P1 | Unused package.json dependency detection | 14 |
+| P1 | Basic `--fix` for unused code (add delve:used comments) | 16 |
+| P1 | Incremental parsing + AST caching | 18 |
+| P2 | Catastrophic anti-patterns (any propagation, async misuse, state smells, secrets) | 15 |
+| P2 | HTML report | 17 |
+| P2 | Benchmark suite | 18 |
+| P2 | Trend tracking + history | 20 |
+| P3 | Plugin system (Rust + JS rules) | 19 |
+| P3 | Interactive TUI mode | 16 |
+| P3 | Diff analysis, summary badge, machine output formats | 20 |
+| P3 | Large project optimizations (lazy loading, streaming) | 18 |
+
+Refer to `TASK_PLAN.md` for detailed task breakdown per phase.
+
 ## Gotchas
 
 - Tree-sitter needs separate grammars for TS and JS — both must be loaded.
 - Import resolution needs extension-trying order: `.ts` → `.tsx` → `.js` → `.jsx` → `.mjs` → `.cjs` → `index.*`
 - Cyclomatic complexity must count `&&`, `||`, `?.`, `??`, ternaries, `case` in addition to `if`/`for`/`while`.
 - Duplicate detection: normalize identifiers → `$id`, strings → `$str`, numbers → `$num` before hashing.
+- Jaccard near-duplicate: tokenize, then use set intersection/union on n-grams, threshold ≥ 0.7.
 - `console.log` detection should skip `__tests__/` and `*.test.*`/`*.spec.*` files.
 - Health score floors at 0; >= 70 green ("healthy"), 40–69 yellow ("needs work"), < 40 red ("vibe disaster").
+- Circular dependency: use Kosaraju or Tarjan SCC algorithm on the directed import graph.
