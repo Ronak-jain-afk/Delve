@@ -26,6 +26,8 @@ pub struct Thresholds {
     pub warning_complexity: usize,
     #[serde(default = "default_critical_complexity")]
     pub critical_complexity: usize,
+    #[serde(default = "default_jaccard_threshold")]
+    pub jaccard_threshold: f64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -51,6 +53,7 @@ const fn default_warning_lines() -> usize { 40 }
 const fn default_critical_lines() -> usize { 80 }
 const fn default_warning_complexity() -> usize { 10 }
 const fn default_critical_complexity() -> usize { 20 }
+const fn default_jaccard_threshold() -> f64 { 0.7 }
 const fn default_unused_file() -> usize { 10 }
 const fn default_giant_critical() -> usize { 3 }
 const fn default_giant_warning() -> usize { 1 }
@@ -66,6 +69,7 @@ impl Default for Thresholds {
             critical_lines: default_critical_lines(),
             warning_complexity: default_warning_complexity(),
             critical_complexity: default_critical_complexity(),
+            jaccard_threshold: default_jaccard_threshold(),
         }
     }
 }

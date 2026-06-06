@@ -49,7 +49,7 @@ All accept `--json` for CI/tooling.
 |----------|---------|-------|
 | P0 | Barrel file detection, type-only imports, circular deps | 14 |
 | P0 | SARIF output, GH annotations, exit code semantics | 17 |
-| P1 | Jaccard near-duplicate detection | 13 |
+| P1 | ~~Jaccard near-duplicate detection~~ | 13 |
 | P1 | Unused package.json dependency detection | 14 |
 | P1 | Basic `--fix` for unused code (add delve:used comments) | 16 |
 | P1 | Incremental parsing + AST caching | 18 |

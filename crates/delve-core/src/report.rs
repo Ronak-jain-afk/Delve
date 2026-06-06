@@ -40,7 +40,8 @@ pub fn run_full_audit(root: &Path, json: bool, sarif: bool, annotations: bool, c
 
     progress.set_message("Detecting duplicates...");
     let files = crate::parser::find_source_files_with_ignore(root, &config.ignore);
-    let dup_clusters = duplicates::find_duplicates(&files);
+    let file_tokens = duplicates::tokenize_files(&files);
+    let dup_clusters = duplicates::find_duplicates(&file_tokens);
 
     let unused_items = unused::find_unused(&graph);
     let health = crate::health::calculate(&graph, &giant_metrics, &risk_items, &config.weights, root);

@@ -110,7 +110,8 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
 
     // Count duplicates
     let files = crate::parser::find_source_files_with_ignore(root, ignore_patterns);
-    let dup_clusters = duplicates::find_duplicates(&files);
+    let file_tokens = duplicates::tokenize_files(&files);
+    let dup_clusters = duplicates::find_duplicates(&file_tokens);
     let duplicate_count = dup_clusters.len();
 
     // Count circular dependencies
