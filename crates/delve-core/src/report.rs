@@ -51,6 +51,9 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
                 })
             }).collect::<Vec<_>>(),
             "risks": risks::format_json(&risk_items),
+            "circularDependencies": graph.find_circular_dependencies().iter().map(|cycle| {
+                serde_json::json!(cycle)
+            }).collect::<Vec<_>>(),
         }))
         .unwrap()
     } else {
@@ -82,6 +85,17 @@ pub fn run_full_audit(root: &Path, json: bool, config: &crate::config::DelveConf
             output.push_str(&format!("{}\n  No risky patterns found.\n\n", Paint::yellow("RISKY PATTERNS")));
         } else {
             output.push_str(&risks::format_report(&risk_items));
+            output.push('\n');
+        }
+
+        let cycles = graph.find_circular_dependencies();
+        if cycles.is_empty() {
+            output.push_str(&format!("{}\n  No circular dependencies found.\n\n", Paint::yellow("CIRCULAR DEPENDENCIES")));
+        } else {
+            output.push_str(&format!("{}\n", Paint::yellow("CIRCULAR DEPENDENCIES")));
+            for cycle in &cycles {
+                output.push_str(&format!("  {} → {} → {}\n", Paint::red("CYCLE"), cycle.join(" → "), Paint::red(&cycle[0])));
+            }
             output.push('\n');
         }
 

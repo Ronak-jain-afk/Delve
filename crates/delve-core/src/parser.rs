@@ -113,6 +113,8 @@ pub struct Export {
     pub end_line: usize,
     pub file_path: String,
     pub is_used: bool,
+    /// If set, this export is a re-export from another module
+    pub re_export_source: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +126,15 @@ pub struct Import {
     pub file_path: String,
     pub is_default: bool,
     pub is_namespace: bool,
+    /// True for `import type { X }` (entire import is type-only)
+    pub is_type_only: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct WildcardReExport {
+    pub source: String,
+    pub start_line: usize,
+    pub file_path: String,
 }
 
 #[derive(Debug, Clone)]
@@ -143,6 +154,8 @@ pub struct FileSymbols {
     pub exports: Vec<Export>,
     pub imports: Vec<Import>,
     pub functions: Vec<FunctionInfo>,
+    /// Re-exports from this file that are wildcards (`export * from './bar'`)
+    pub wildcard_re_exports: Vec<WildcardReExport>,
 }
 
 fn node_text<'a>(source: &'a str, node: Node) -> &'a str {
@@ -206,49 +219,75 @@ fn collect_exports(
     file_path: &str,
     exports: &mut Vec<Export>,
     functions: &mut Vec<FunctionInfo>,
+    wildcard_re_exports: &mut Vec<WildcardReExport>,
 ) {
     match node.kind() {
         "export_statement" => {
+            // Pre-pass: detect re-export source
+            let re_export_from: Option<String> = {
+                let mut c = node.walk();
+                let mut found = None;
+                for child in node.children(&mut c) {
+                    if child.kind() == "string" || child.kind() == "string_fragment" {
+                        let raw = node_text(source, child);
+                        found = Some(raw.trim_matches('\'').trim_matches('"').to_string());
+                    }
+                }
+                found
+            };
+
             let mut cursor = node.walk();
+            let mut has_export_clause = false;
+            let mut is_star_export = false;
+
             for child in node.children(&mut cursor) {
                 match child.kind() {
                     "function_declaration" | "generator_function_declaration" => {
-                        if let Some(name) = child
-                            .child_by_field_name("name")
-                            .map(|n| node_text(source, n))
-                        {
-                            let start = child.start_position().row + 1;
-                            let end = child.end_position().row + 1;
-                            exports.push(Export {
-                                name: name.to_string(),
-                                kind: ExportKind::Function,
-                                start_line: start,
-                                end_line: end,
-                                file_path: file_path.to_string(),
-                                is_used: false,
-                            });
-                            functions.push(make_function_info(child, Some(name.to_string()), file_path));
+                        if re_export_from.is_none() {
+                            if let Some(name) = child
+                                .child_by_field_name("name")
+                                .map(|n| node_text(source, n))
+                            {
+                                let start = child.start_position().row + 1;
+                                let end = child.end_position().row + 1;
+                                exports.push(Export {
+                                    name: name.to_string(),
+                                    kind: ExportKind::Function,
+                                    start_line: start,
+                                    end_line: end,
+                                    file_path: file_path.to_string(),
+                                    is_used: false,
+                                    re_export_source: None,
+                                });
+                                functions.push(make_function_info(child, Some(name.to_string()), file_path));
+                            }
                         }
                     }
                     "class_declaration" => {
-                        if let Some(name) = child
-                            .child_by_field_name("name")
-                            .map(|n| node_text(source, n))
-                        {
-                            exports.push(Export {
-                                name: name.to_string(),
-                                kind: ExportKind::Class,
-                                start_line: child.start_position().row + 1,
-                                end_line: child.end_position().row + 1,
-                                file_path: file_path.to_string(),
-                                is_used: false,
-                            });
+                        if re_export_from.is_none() {
+                            if let Some(name) = child
+                                .child_by_field_name("name")
+                                .map(|n| node_text(source, n))
+                            {
+                                exports.push(Export {
+                                    name: name.to_string(),
+                                    kind: ExportKind::Class,
+                                    start_line: child.start_position().row + 1,
+                                    end_line: child.end_position().row + 1,
+                                    file_path: file_path.to_string(),
+                                    is_used: false,
+                                    re_export_source: None,
+                                });
+                            }
                         }
                     }
                     "lexical_declaration" | "variable_declaration" => {
-                        extract_variable_exports(child, source, file_path, exports, functions);
+                        if re_export_from.is_none() {
+                            extract_variable_exports(child, source, file_path, exports, functions);
+                        }
                     }
                     "export_clause" => {
+                        has_export_clause = true;
                         let mut ec = child.walk();
                         for spec in child.children(&mut ec) {
                             if spec.kind() == "export_specifier" {
@@ -263,66 +302,93 @@ fn collect_exports(
                                         end_line: spec.end_position().row + 1,
                                         file_path: file_path.to_string(),
                                         is_used: false,
+                                        re_export_source: re_export_from.clone(),
                                     });
                                 }
                             }
                         }
                     }
                     "interface_declaration" => {
-                        if let Some(name) = child
-                            .child_by_field_name("name")
-                            .map(|n| node_text(source, n))
-                        {
-                            exports.push(Export {
-                                name: name.to_string(),
-                                kind: ExportKind::Interface,
-                                start_line: child.start_position().row + 1,
-                                end_line: child.end_position().row + 1,
-                                file_path: file_path.to_string(),
-                                is_used: false,
-                            });
-                        }
-                    }
-                    "type_alias_declaration" => {
-                        if let Some(name) = child
-                            .child_by_field_name("name")
-                            .map(|n| node_text(source, n))
-                        {
-                            exports.push(Export {
-                                name: name.to_string(),
-                                kind: ExportKind::Type,
-                                start_line: child.start_position().row + 1,
-                                end_line: child.end_position().row + 1,
-                                file_path: file_path.to_string(),
-                                is_used: false,
-                            });
-                        }
-                    }
-                    "assignment_expression" => {
-                        if let Some(left) = child.child_by_field_name("left") {
-                            let left_text = node_text(source, left);
-                            if left_text == "module.exports" {
+                        if re_export_from.is_none() {
+                            if let Some(name) = child
+                                .child_by_field_name("name")
+                                .map(|n| node_text(source, n))
+                            {
                                 exports.push(Export {
-                                    name: "default".to_string(),
-                                    kind: ExportKind::Default,
+                                    name: name.to_string(),
+                                    kind: ExportKind::Interface,
                                     start_line: child.start_position().row + 1,
                                     end_line: child.end_position().row + 1,
                                     file_path: file_path.to_string(),
                                     is_used: false,
-                                });
-                            } else if let Some(prop) = left_text.strip_prefix("exports.") {
-                                exports.push(Export {
-                                    name: prop.to_string(),
-                                    kind: ExportKind::Named,
-                                    start_line: child.start_position().row + 1,
-                                    end_line: child.end_position().row + 1,
-                                    file_path: file_path.to_string(),
-                                    is_used: false,
+                                    re_export_source: None,
                                 });
                             }
                         }
                     }
-                    _ => {}
+                    "type_alias_declaration" => {
+                        if re_export_from.is_none() {
+                            if let Some(name) = child
+                                .child_by_field_name("name")
+                                .map(|n| node_text(source, n))
+                            {
+                                exports.push(Export {
+                                    name: name.to_string(),
+                                    kind: ExportKind::Type,
+                                    start_line: child.start_position().row + 1,
+                                    end_line: child.end_position().row + 1,
+                                    file_path: file_path.to_string(),
+                                    is_used: false,
+                                    re_export_source: None,
+                                });
+                            }
+                        }
+                    }
+                    "assignment_expression" => {
+                        if re_export_from.is_none() {
+                            if let Some(left) = child.child_by_field_name("left") {
+                                let left_text = node_text(source, left);
+                                if left_text == "module.exports" {
+                                    exports.push(Export {
+                                        name: "default".to_string(),
+                                        kind: ExportKind::Default,
+                                        start_line: child.start_position().row + 1,
+                                        end_line: child.end_position().row + 1,
+                                        file_path: file_path.to_string(),
+                                        is_used: false,
+                                        re_export_source: None,
+                                    });
+                                } else if let Some(prop) = left_text.strip_prefix("exports.") {
+                                    exports.push(Export {
+                                        name: prop.to_string(),
+                                        kind: ExportKind::Named,
+                                        start_line: child.start_position().row + 1,
+                                        end_line: child.end_position().row + 1,
+                                        file_path: file_path.to_string(),
+                                        is_used: false,
+                                        re_export_source: None,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        let text = node_text(source, child);
+                        if text == "*" && re_export_from.is_some() {
+                            is_star_export = true;
+                        }
+                    }
+                }
+            }
+
+            // Handle export * from './bar' (wildcard re-export)
+            if is_star_export && !has_export_clause {
+                if let Some(ref source_module) = re_export_from {
+                    wildcard_re_exports.push(WildcardReExport {
+                        source: source_module.clone(),
+                        start_line: node.start_position().row + 1,
+                        file_path: file_path.to_string(),
+                    });
                 }
             }
         }
@@ -340,6 +406,7 @@ fn collect_exports(
                                 end_line: child.end_position().row + 1,
                                 file_path: file_path.to_string(),
                                 is_used: false,
+                                re_export_source: None,
                             });
                         } else if let Some(prop) = left_text.strip_prefix("exports.") {
                             exports.push(Export {
@@ -349,6 +416,7 @@ fn collect_exports(
                                 end_line: child.end_position().row + 1,
                                 file_path: file_path.to_string(),
                                 is_used: false,
+                                re_export_source: None,
                             });
                         }
                     }
@@ -388,6 +456,7 @@ fn extract_variable_exports(
                     end_line: end,
                     file_path: file_path.to_string(),
                     is_used: false,
+                    re_export_source: None,
                 });
                 if let Some(value) = child.child_by_field_name("value") {
                     if value.kind() == "function" || value.kind() == "arrow_function" {
@@ -425,10 +494,14 @@ fn collect_imports(node: Node, source: &str, file_path: &str, imports: &mut Vec<
         let mut source_module = String::new();
         let mut is_default = false;
         let mut is_namespace = false;
+        let mut is_type_only = false;
 
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             match child.kind() {
+                "type" => {
+                    is_type_only = true;
+                }
                 "import_clause" => {
                     let mut ic = child.walk();
                     for c in child.children(&mut ic) {
@@ -477,6 +550,7 @@ fn collect_imports(node: Node, source: &str, file_path: &str, imports: &mut Vec<
                 file_path: file_path.to_string(),
                 is_default,
                 is_namespace,
+                is_type_only,
             });
         }
         return;
@@ -498,6 +572,7 @@ fn collect_imports(node: Node, source: &str, file_path: &str, imports: &mut Vec<
                     file_path: file_path.to_string(),
                     is_default: true,
                     is_namespace: false,
+                    is_type_only: false,
                 });
                 return;
             }
@@ -517,6 +592,7 @@ fn collect_imports(node: Node, source: &str, file_path: &str, imports: &mut Vec<
                     file_path: file_path.to_string(),
                     is_default: true,
                     is_namespace: false,
+                    is_type_only: false,
                 });
                 return;
             }
@@ -536,10 +612,11 @@ pub fn extract_file_symbols(file_path: &str, source: &str) -> Option<FileSymbols
     let mut exports = Vec::new();
     let mut imports = Vec::new();
     let mut functions = Vec::new();
+    let mut wildcard_re_exports = Vec::new();
 
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
-        collect_exports(child, source, file_path, &mut exports, &mut functions);
+        collect_exports(child, source, file_path, &mut exports, &mut functions, &mut wildcard_re_exports);
         collect_imports(child, source, file_path, &mut imports);
     }
 
@@ -548,6 +625,7 @@ pub fn extract_file_symbols(file_path: &str, source: &str) -> Option<FileSymbols
         exports,
         imports,
         functions,
+        wildcard_re_exports,
     })
 }
 

@@ -43,6 +43,8 @@ pub struct Weights {
     pub any_type: usize,
     #[serde(default = "default_console_log")]
     pub console_log: usize,
+    #[serde(default = "default_circular_dep")]
+    pub circular_dep: usize,
 }
 
 const fn default_warning_lines() -> usize { 40 }
@@ -55,6 +57,7 @@ const fn default_giant_warning() -> usize { 1 }
 const fn default_duplicate() -> usize { 1 }
 const fn default_any_type() -> usize { 1 }
 const fn default_console_log() -> usize { 1 }
+const fn default_circular_dep() -> usize { 5 }
 
 impl Default for Thresholds {
     fn default() -> Self {
@@ -76,6 +79,7 @@ impl Default for Weights {
             duplicate: default_duplicate(),
             any_type: default_any_type(),
             console_log: default_console_log(),
+            circular_dep: default_circular_dep(),
         }
     }
 }

@@ -9,7 +9,6 @@ pub struct DepGraph {
     /// Maps file path → symbols extracted from that file
     pub all_symbols: HashMap<String, FileSymbols>,
     /// Maps (importer_file, imported_symbol) → Vec<(export_file, export_symbol)>
-    /// Tracks which specific symbols are imported from where
     pub import_edges: HashMap<(String, String), Vec<(String, String)>>,
     /// Reverse: maps (export_file, export_symbol) → Vec<(importer_file, imported_symbol)>
     pub reverse_imports: HashMap<(String, String), Vec<(String, String)>>,
@@ -17,6 +16,9 @@ pub struct DepGraph {
     pub entry_points: Vec<String>,
     /// Exports that are reachable from entry points
     pub reachable_exports: HashSet<(String, String)>,
+    /// Maps (re_exporter_file, re_exported_symbol) → Vec<(source_file, source_symbol)>
+    /// For re-exports like `export { foo } from './bar'`
+    pub re_export_edges: HashMap<(String, String), Vec<(String, String)>>,
 }
 
 impl DepGraph {
@@ -32,6 +34,7 @@ impl DepGraph {
             reverse_imports: HashMap::new(),
             entry_points: Vec::new(),
             reachable_exports: HashSet::new(),
+            re_export_edges: HashMap::new(),
         }
     }
 
@@ -40,10 +43,10 @@ impl DepGraph {
 
         for file_path in &file_paths {
             if let Some(symbols) = self.all_symbols.get(file_path) {
+                // Process regular imports
                 for imp in &symbols.imports {
                     if let Some(resolved_path) = resolve_import(file_path, &imp.source) {
                         if let Some(target_symbols) = self.all_symbols.get(&resolved_path) {
-                            // For each imported symbol, find the matching export
                             for sym in &imp.symbols {
                                 let has_matching_export = target_symbols
                                     .exports
@@ -76,6 +79,39 @@ impl DepGraph {
                                         .or_default()
                                         .push((file_path.clone(), exp.name.clone()));
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Process named re-exports: export { foo } from './bar'
+                for exp in &symbols.exports {
+                    if let Some(ref source) = exp.re_export_source {
+                        if let Some(resolved_source) = resolve_import(file_path, source) {
+                            // Find the symbol in the source file
+                            if let Some(source_sym) = self.all_symbols.get(&resolved_source) {
+                                if source_sym.exports.iter().any(|e| e.name == exp.name) {
+                                    let key = (file_path.clone(), exp.name.clone());
+                                    self.re_export_edges
+                                        .entry(key)
+                                        .or_default()
+                                        .push((resolved_source.clone(), exp.name.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Process wildcard re-exports: export * from './bar'
+                for wildcard in &symbols.wildcard_re_exports {
+                    if let Some(resolved_source) = resolve_import(file_path, &wildcard.source) {
+                        if let Some(source_sym) = self.all_symbols.get(&resolved_source) {
+                            for src_exp in &source_sym.exports {
+                                let key = (file_path.clone(), src_exp.name.clone());
+                                self.re_export_edges
+                                    .entry(key)
+                                    .or_default()
+                                    .push((resolved_source.clone(), src_exp.name.clone()));
                             }
                         }
                     }
@@ -186,12 +222,31 @@ impl DepGraph {
                 for imp in &symbols.imports {
                     if let Some(resolved) = resolve_import(&file, &imp.source) {
                         if self.all_symbols.contains_key(&resolved) {
-                            // Mark the specific imported symbols as reachable
                             for sym in &imp.symbols {
                                 self.reachable_exports
                                     .insert((resolved.clone(), sym.clone()));
                             }
                             queue.push_back(resolved);
+                        }
+                    }
+                }
+            }
+
+            // Follow re-export chains: if this file re-exports a symbol,
+            // the original source symbol is also reachable
+            let keys: Vec<_> = self
+                .re_export_edges
+                .keys()
+                .filter(|(f, _)| *f == file)
+                .cloned()
+                .collect();
+            for key in &keys {
+                if self.reachable_exports.contains(key) {
+                    if let Some(sources) = self.re_export_edges.get(key) {
+                        for (src_file, src_sym) in sources {
+                            self.reachable_exports
+                                .insert((src_file.clone(), src_sym.clone()));
+                            queue.push_back(src_file.clone());
                         }
                     }
                 }
@@ -210,6 +265,110 @@ impl DepGraph {
         }
         unused.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.start_line.cmp(&b.1.start_line)));
         unused
+    }
+
+    /// Find circular dependencies using Tarjan's SCC algorithm.
+    /// Returns cycles where each cycle is a list of file paths.
+    pub fn find_circular_dependencies(&self) -> Vec<Vec<String>> {
+        // Build adjacency list: which files import from which
+        let file_paths: Vec<String> = self.all_symbols.keys().cloned().collect();
+        let file_set: HashSet<String> = file_paths.iter().cloned().collect();
+
+        let mut adj: HashMap<String, Vec<String>> = HashMap::new();
+        for fp in &file_paths {
+            adj.entry(fp.clone()).or_default();
+        }
+        for ((importer, _), targets) in &self.import_edges {
+            for (target_file, _) in targets {
+                if file_set.contains(importer) && file_set.contains(target_file) {
+                    adj.entry(importer.clone())
+                        .or_default()
+                        .push(target_file.clone());
+                }
+            }
+        }
+
+        // Tarjan's SCC
+        let mut index = 0usize;
+        let mut stack: Vec<String> = Vec::new();
+        let mut on_stack: HashSet<String> = HashSet::new();
+        let mut indices: HashMap<String, usize> = HashMap::new();
+        let mut lowlink: HashMap<String, usize> = HashMap::new();
+        let mut sccs: Vec<Vec<String>> = Vec::new();
+
+        fn strongconnect(
+            v: &str,
+            adj: &HashMap<String, Vec<String>>,
+            index: &mut usize,
+            stack: &mut Vec<String>,
+            on_stack: &mut HashSet<String>,
+            indices: &mut HashMap<String, usize>,
+            lowlink: &mut HashMap<String, usize>,
+            sccs: &mut Vec<Vec<String>>,
+        ) {
+            indices.insert(v.to_string(), *index);
+            lowlink.insert(v.to_string(), *index);
+            *index += 1;
+            stack.push(v.to_string());
+            on_stack.insert(v.to_string());
+
+            if let Some(neighbors) = adj.get(v) {
+                for w in neighbors {
+                    if !indices.contains_key(w) {
+                        strongconnect(w, adj, index, stack, on_stack, indices, lowlink, sccs);
+                        let w_low = *lowlink.get(w).unwrap_or(&usize::MAX);
+                        let v_low = *lowlink.get(v).unwrap_or(&usize::MAX);
+                        lowlink.insert(v.to_string(), v_low.min(w_low));
+                    } else if on_stack.contains(w) {
+                        let w_idx = *indices.get(w).unwrap_or(&usize::MAX);
+                        let v_low = *lowlink.get(v).unwrap_or(&usize::MAX);
+                        lowlink.insert(v.to_string(), v_low.min(w_idx));
+                    }
+                }
+            }
+
+            if lowlink.get(v) == indices.get(v) {
+                let mut scc: Vec<String> = Vec::new();
+                loop {
+                    let w = stack.pop().unwrap();
+                    on_stack.remove(&w);
+                    scc.push(w.clone());
+                    if w == v {
+                        break;
+                    }
+                }
+                // Only keep SCCs with > 1 node (those are actual cycles)
+                if scc.len() > 1 {
+                    scc.sort();
+                    sccs.push(scc);
+                }
+            }
+        }
+
+        let sorted: Vec<String> = file_paths.clone();
+        for v in &sorted {
+            if !indices.contains_key(v) {
+                strongconnect(
+                    v, &adj, &mut index, &mut stack, &mut on_stack,
+                    &mut indices, &mut lowlink, &mut sccs,
+                );
+            }
+        }
+
+        sccs.sort_by(|a, b| a[0].cmp(&b[0]));
+        sccs
+    }
+
+    /// Returns true if a file is a barrel file (all exports are re-exports).
+    pub fn is_barrel_file(&self, file_path: &str) -> bool {
+        if let Some(symbols) = self.all_symbols.get(file_path) {
+            if symbols.exports.is_empty() {
+                return false;
+            }
+            symbols.exports.iter().all(|e| e.re_export_source.is_some())
+        } else {
+            false
+        }
     }
 }
 
@@ -460,6 +619,105 @@ mod tests {
         assert!(
             !has_format_date,
             "formatDate is imported and should not be unused"
+        );
+    }
+
+    // --- Barrel file tests ---
+
+    #[test]
+    fn test_re_export_detected() {
+        let root = Path::new("../../test-fixtures/v2");
+        let graph = build_complete_graph(root);
+        let barrel = graph.all_symbols.values().find(|s| s.file_path.ends_with("barrel.ts"));
+        assert!(barrel.is_some(), "should parse barrel.ts");
+        let barrel = barrel.unwrap();
+
+        let re_exports: Vec<_> = barrel.exports.iter().filter(|e| e.re_export_source.is_some()).collect();
+        assert!(!re_exports.is_empty(), "barrel.ts should have re-exports");
+        assert!(re_exports.iter().any(|e| e.name == "helperA"), "should re-export helperA");
+        assert!(re_exports.iter().any(|e| e.name == "helperB"), "should re-export helperB");
+    }
+
+    #[test]
+    fn test_re_export_propagation() {
+        // A.ts exports helperA, barrel.ts re-exports helperA from A.ts,
+        // consumer.ts imports helperA from barrel.ts.
+        // helperA in A.ts should be reachable.
+        let root = Path::new("../../test-fixtures/v2");
+        let graph = build_complete_graph(root);
+        let has_helper_a = graph
+            .reachable_exports
+            .iter()
+            .any(|(f, n)| f.contains("A.ts") && n == "helperA");
+        assert!(
+            has_helper_a,
+            "helperA in A.ts should be reachable via barrel.ts re-export"
+        );
+    }
+
+    #[test]
+    fn test_barrel_file_detection() {
+        let root = Path::new("../../test-fixtures/v2");
+        let graph = build_complete_graph(root);
+        let barrel_path = graph.all_symbols.keys().find(|p| p.contains("barrel.ts"));
+        assert!(barrel_path.is_some(), "should find barrel.ts");
+        assert!(
+            graph.is_barrel_file(barrel_path.unwrap()),
+            "barrel.ts should be detected as barrel file"
+        );
+    }
+
+    #[test]
+    fn test_wildcard_re_export_propagation() {
+        let root = Path::new("../../test-fixtures/v2");
+        let graph = build_complete_graph(root);
+        let has_wildcard_export = graph
+            .reachable_exports
+            .iter()
+            .any(|(f, n)| f.contains("wildcard_a.ts") && (n == "funcA" || n == "funcB"));
+        assert!(
+            has_wildcard_export,
+            "wildcard re-exports should be reachable"
+        );
+    }
+
+    // --- Type-only import tests ---
+
+    #[test]
+    fn test_type_only_import_detected() {
+        let root = Path::new("../../test-fixtures/v2");
+        let graph = build_complete_graph(root);
+        let consumer = graph.all_symbols.values().find(|s| s.file_path.ends_with("type_consumer.ts"));
+        assert!(consumer.is_some(), "should parse type_consumer.ts");
+        let consumer = consumer.unwrap();
+
+        let type_only_imports: Vec<_> = consumer.imports.iter().filter(|i| i.is_type_only).collect();
+        assert!(!type_only_imports.is_empty(), "type_consumer.ts should have type-only imports");
+    }
+
+    // --- Circular dependency tests ---
+
+    #[test]
+    fn test_circular_dependency_detected() {
+        let root = Path::new("../../test-fixtures/v2");
+        let graph = build_complete_graph(root);
+        let cycles = graph.find_circular_dependencies();
+        let has_cycle = cycles.iter().any(|cycle| {
+            cycle.iter().any(|f| f.contains("circ_a.ts"))
+                && cycle.iter().any(|f| f.contains("circ_b.ts"))
+        });
+        assert!(has_cycle, "circ_a.ts and circ_b.ts should form a cycle");
+    }
+
+    #[test]
+    fn test_no_false_cycle_on_acyclic() {
+        // vibe-app should have no circular deps
+        let root = Path::new("../../test-fixtures/vibe-app");
+        let graph = build_complete_graph(root);
+        let cycles = graph.find_circular_dependencies();
+        assert!(
+            cycles.is_empty(),
+            "vibe-app should have no circular dependencies"
         );
     }
 }

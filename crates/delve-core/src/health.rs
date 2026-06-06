@@ -21,6 +21,7 @@ pub struct HealthReport {
     pub debugger_count: usize,
     pub deep_nesting_count: usize,
     pub long_params_count: usize,
+    pub circular_dep_count: usize,
 }
 
 impl HealthReport {
@@ -75,6 +76,12 @@ impl HealthReport {
                 self.long_params_count
             ));
         }
+        if self.circular_dep_count > 0 {
+            todos.push(format!(
+                "Resolve {} circular dependency chain(s)",
+                self.circular_dep_count
+            ));
+        }
 
         if todos.is_empty() {
             todos.push("Nothing to fix! Your codebase looks healthy.".to_string());
@@ -106,6 +113,10 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
     let dup_clusters = duplicates::find_duplicates(&files);
     let duplicate_count = dup_clusters.len();
 
+    // Count circular dependencies
+    let cycles = graph.find_circular_dependencies();
+    let circular_dep_count = cycles.len();
+
     // Calculate score
     let mut score: isize = 100;
     if unused_file_count > 0 {
@@ -116,6 +127,7 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
     score -= (duplicate_count * weights.duplicate) as isize;
     score -= (any_type_count * weights.any_type) as isize;
     score -= (console_log_count * weights.console_log) as isize;
+    score -= (circular_dep_count * weights.circular_dep) as isize;
 
     let score = score.max(0) as usize;
 
@@ -139,6 +151,7 @@ pub fn calculate_with_ignore(graph: &DepGraph, giant_metrics: &[giant_funcs::Fun
         debugger_count,
         deep_nesting_count,
         long_params_count,
+        circular_dep_count,
     }
 }
 
@@ -175,6 +188,7 @@ pub fn run_health(root: &Path, json: bool, config: &crate::config::DelveConfig) 
             "debuggerStatements": report.debugger_count,
             "deepNesting": report.deep_nesting_count,
             "longParams": report.long_params_count,
+            "circularDeps": report.circular_dep_count,
             "todo": report.to_todo_list(),
         }))
         .unwrap()

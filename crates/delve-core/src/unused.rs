@@ -16,6 +16,9 @@ pub fn find_unused(graph: &DepGraph) -> Vec<UnusedItem> {
     let mut items = Vec::new();
     for (file_path, symbols) in &graph.all_symbols {
         for exp in &symbols.exports {
+            if exp.re_export_source.is_some() {
+                continue; // Barrels are pass-through; the source export is what matters
+            }
             if !graph.reachable_exports.contains(&(file_path.clone(), exp.name.clone())) {
                 // Check for /* delve:used */ comment
                 if !has_delve_used_comment(file_path, exp.start_line) {
